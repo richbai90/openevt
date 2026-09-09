@@ -36,7 +36,7 @@ mod plugin_adapter {
         SensorInfo, StreamBuffer, SystemInfo,
     };
     use crate::hal::types::EventTimestamp;
-    
+
     use abi_stable::{
         std_types::{RSlice, RString},
         type_level::downcasting::TD_Opaque,

@@ -1,0 +1,25 @@
+[package]
+name = "openevt-plugin-lucid-evs"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "OpenEVT plugin for LUCID GigE Vision EVT cameras"
+
+[dependencies]
+abi_stable = "0.11.3"
+bytes = "1"
+crossbeam = "0.8"
+openevt = { version = "1.0.5", default-features = false, features = [
+    "devices",
+    "plugins",
+    "library-link",
+], path = "../" }
+tokio = { version = "1", features = ["rt", "time"] }
+tracing = "0.1"
+viva-genicam = { git = "https://github.com/richbai90/viva-genicam", branch = "feat/lucid-evt-supportt" }
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[lib]
+crate-type = ["cdylib"]

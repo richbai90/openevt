@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "openevt-plugins"]
+members = [".", "openevt-plugins", "openevt-plugin-lucid-evs"]
 resolver = "3"
 
 [package]

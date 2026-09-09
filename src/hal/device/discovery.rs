@@ -215,28 +215,29 @@ impl PluginRegistry {
         &self,
         configuration: super::plugin::PluginConfiguration,
     ) -> Result<super::plugin::DevicePluginBox, String> {
-        let schema = self.configuration_schema(configuration.serial.as_str())?;
-        schema
-            .validate(&configuration)
-            .map_err(|error| error.to_string())?;
+        // The schema lookup is best-effort: a plugin may accept serials that
+        // don't appear in its own `discover()` output (for example, an
+        // auto-discovery sentinel that resolves at open time). When the
+        // host has a schema for the serial we still validate the supplied
+        // configuration values; otherwise we let the plugin decide.
+        if let Ok(schema) = self.configuration_schema(configuration.serial.as_str()) {
+            schema
+                .validate(&configuration)
+                .map_err(|error| error.to_string())?;
+        }
+
+        let mut last_error: Option<String> = None;
         for (_, discovery) in &self.modules {
-            if discovery
-                .discover()
-                .iter()
-                .any(|description| description.serial == configuration.serial)
-            {
-                match discovery.open_device_with_configuration(configuration.clone()) {
-                    abi_stable::std_types::RResult::ROk(device) => return Ok(device),
-                    abi_stable::std_types::RResult::RErr(error) => {
-                        return Err(error.to_string());
-                    }
+            match discovery.open_device_with_configuration(configuration.clone()) {
+                abi_stable::std_types::RResult::ROk(device) => return Ok(device),
+                abi_stable::std_types::RResult::RErr(error) => {
+                    last_error = Some(error.to_string());
                 }
             }
         }
-        Err(format!(
-            "no plugin device found for serial {}",
-            configuration.serial
-        ))
+        Err(last_error.unwrap_or_else(|| {
+            format!("no plugin device found for serial {}", configuration.serial)
+        }))
     }
 
     /// Opens a configured plugin through the native host-layer device adapter.
