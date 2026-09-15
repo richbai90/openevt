@@ -1,20 +1,27 @@
-# Raw file device plugin example
+# Raw file device plugin
 
-`RawFilePlugin` is the reference implementation for adapting an existing
-native device to the `abi_stable` plugin boundary. It is intentionally an
-adapter, not a second decoder.
+`openevt_plugins::raw::RawFilePlugin` adapts the native [`RawFileReader`] to the
+`abi_stable` plugin boundary, so a recording can be replayed anywhere an
+application would otherwise open a camera. It is intentionally an adapter, not a
+second decoder.
+
+It ships in the `openevt-plugins` crate alongside the event simulator, as one of
+the standard devices most applications want on hand.
 
 ## Build and load
 
-Build the library with both device and plugin support:
-
 ```sh
-cargo build --release --features devices,plugins,bundled-plugins
+cargo build --release -p openevt-plugins
 ```
 
-The resulting `openevt` cdylib exports the `openevt_device_plugin` root module.
-Place it in one of the standard plugin directories, or configure the host
-plugin search path with `OPENEVT_PLUGIN_PATH`.
+The resulting `libopenevt_plugins.so` exports the `openevt_device_plugin` root
+module and advertises this device under the name `openevt_raw_file`. Place it in
+one of the standard plugin directories, or configure the host plugin search path
+with `OPENEVT_PLUGIN_PATH`.
+
+Note that the plugin library is separate from the `openevt` cdylib: the core
+crate exports no root module of its own, so the two can be loaded into the same
+process without their `abi_stable` root-module symbols colliding.
 
 To make raw files discoverable, set `OPENEVT_RAW_FILES` to a platform-separated
 list of EVT3 paths. The discovery serial is the path. An application can query

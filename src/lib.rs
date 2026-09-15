@@ -77,8 +77,6 @@ pub mod algorithms;
 /// Python bindings for the device and event APIs.
 pub mod python;
 
-#[cfg(all(feature = "devices", feature = "bundled-plugins"))]
-pub use raw::RawFilePlugin;
 #[cfg(feature = "devices")]
 pub use raw::{
     BufferReplenisher, EventWindowIterator, IterAsync, IterSync, RawEventStreamDecoder,

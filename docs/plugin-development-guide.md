@@ -66,34 +66,37 @@ an `RSlice` only while invoking the host-layer callback.
 
 There are two useful layouts.
 
-### Layout a: Plugin Inside This Repository
+### Layout a: Add the Device to `openevt-plugins`
 
-This is convenient for an adapter that reuses OpenEVT’s existing device code.
-The root crate already has the required library types and can produce a
-`cdylib`.
+This is convenient for an adapter that reuses OpenEVT’s existing device code,
+and it is where the standard devices live. Add a module next to `simulator` and
+`raw`, then register it in the crate's single root module (`src/module.rs`):
 
-Enable the plugin feature:
+```rust,ignore
+extern "C" fn create_standard_discoveries() -> RVec<NamedDiscoveryPlugin> {
+    vec![
+        // ... existing devices ...
+        NamedDiscoveryPlugin {
+            name: MY_DEVICE_PLUGIN_NAME.into(),
+            discovery: create_my_device_discovery(),
+        },
+    ]
+    .into()
+}
+```
 
 ```sh
-cargo build --release --features devices,plugins,bundled-plugins
+cargo build --release -p openevt-plugins
 ```
 
-The relevant feature configuration is:
+A shared library can only export one `abi_stable` root module, so devices in
+this crate are *not* exported individually. `create_discoveries` returns one
+[`NamedDiscoveryPlugin`] per device, and the host registers each separately
+while preserving its name and creation schema.
 
-```toml
-[features]
-plugins = ["dep:abi_stable"]
-bundled-plugins = ["plugins"]
-
-[dependencies]
-abi_stable = { version = "0.11.3", optional = true }
-
-[lib]
-crate-type = ["rlib", "cdylib"]
-```
-
-The `cdylib` output is the dynamic library that the host layer loads. The `rlib`
-output remains useful for unit tests and normal Rust dependencies.
+Do not add an `export_root_module` to the core `openevt` crate. It is linked
+into every plugin library as an `rlib`, so a root module exported from there
+would collide with the plugin's own.
 
 ### Layout B: A Separate Plugin Crate
 

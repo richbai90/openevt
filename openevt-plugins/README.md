@@ -2,6 +2,25 @@
 
 `openevt-plugins` provides dynamic plugin integrations for processing and streaming EVT3 event-based vision data.
 
+## Devices
+
+The crate builds to a single plugin library, `libopenevt_plugins.so`, providing
+the devices most applications want on hand:
+
+| Name | Description | Serial |
+| --- | --- | --- |
+| `openevt_simulator` | Synthesises CD events from a video file. | `EventSimulator` |
+| `openevt_raw_file` | Replays a recorded EVT3 file as a device. | the file path |
+
+The raw-file reader accepts any path as its serial, so a recording can be opened
+directly without being advertised first. Set `OPENEVT_RAW_FILES` to a
+platform-separated list of paths to have recordings show up in device
+enumeration as well.
+
+A shared library can only export one `abi_stable` root module, so both devices
+are exported through one vtable and registered individually by the host. See
+[`src/module.rs`](src/module.rs).
+
 ---
 
 ## 🛠️ Installation & Setup

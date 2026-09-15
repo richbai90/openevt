@@ -8,15 +8,11 @@ mod device;
 mod facilities;
 mod index;
 mod iterator;
-#[cfg(feature = "bundled-plugins")]
-pub mod plugin;
 mod reader;
 mod stream;
 
 pub use decoder::RawEventStreamDecoder;
 pub use iterator::*;
-#[cfg(feature = "bundled-plugins")]
-pub use plugin::RawFilePlugin;
 /// High-level convenience reader for raw event files.
 pub use reader::RawFileReader;
 

@@ -1,4 +1,4 @@
-//! `abi_stable` example plugin for the existing [`RawFileReader`].
+//! `abi_stable` device plugin exposing [`RawFileReader`] as a replay device.
 //!
 //! The adapter deliberately reuses the native implementation: file parsing,
 //! EVT3 decoding, timestamp normalization, ROI state, and channel creation are
@@ -16,8 +16,6 @@
 //! `start_events` subscribes to the CD receiver, `load_batch` decodes one raw
 //! buffer, and every batch produced by that decode is sent to the callback.
 
-#[cfg(not(feature = "library-link"))]
-use abi_stable::prefix_type::PrefixTypeTrait;
 use abi_stable::{
     std_types::{ROption, RResult, RString, RVec},
     type_level::downcasting::TD_Opaque,
@@ -25,27 +23,24 @@ use abi_stable::{
 use crossbeam::channel::Receiver;
 use std::sync::{Arc, Mutex};
 
-#[cfg(not(feature = "library-link"))]
-use crate::hal::device::configuration::PluginConfigurationSchema;
-use crate::hal::device::discovery::ConnectionType;
-#[cfg(not(feature = "library-link"))]
-use crate::hal::device::plugin::{
+use openevt::hal::device::configuration::PluginConfigurationSchema;
+use openevt::hal::device::discovery::ConnectionType;
+use openevt::hal::device::plugin::{
     DeviceDiscoveryPlugin, DeviceDiscoveryPlugin_TO, DeviceDiscoveryPluginBox, DevicePlugin_TO,
     DevicePluginBox, PluginCameraDescriptionAbi, PluginConfiguration,
 };
-use crate::hal::device::plugin::{
+use openevt::hal::device::plugin::{
     DevicePlugin, EventBatchSinkBox, PluginFacility, PluginFacilityHandle, PluginFacilityType,
     PluginGeometry, PluginGeometryFacility, PluginGeometryFacility_TO,
 };
-use crate::hal::types::{EventCD, EventExtTrigger, EventTimestamp};
-use crate::raw::RawFileReader;
+use openevt::hal::types::{EventCD, EventExtTrigger, EventTimestamp};
+use openevt::RawFileReader;
 
 // Keep the example's stack footprint aligned with the normal reader tests;
 // callers can introduce a larger buffer as a versioned plugin policy.
 const BUFFER_SIZE: usize = 131_072;
 
-#[cfg(not(feature = "library-link"))]
-const RAW_FILE_CONFIGURATION_SCHEMA: &str = r#"
+pub(crate) const RAW_FILE_CONFIGURATION_SCHEMA: &str = r#"
 version = 1
 
 [[parameters]]
@@ -117,7 +112,7 @@ struct RawGeometryFacility {
 struct RawIndexFacility<const N: usize> {
     reader: Arc<Mutex<RawFileReader<N>>>,
 }
-impl<const N: usize> crate::hal::device::plugin::PluginIndexFacility for RawIndexFacility<N> {
+impl<const N: usize> openevt::hal::device::plugin::PluginIndexFacility for RawIndexFacility<N> {
     fn t_min(&self) -> ROption<EventTimestamp> {
         self.reader.lock().unwrap().t_min().into()
     }
@@ -129,7 +124,7 @@ impl<const N: usize> crate::hal::device::plugin::PluginIndexFacility for RawInde
 struct RawSeekFacility<const N: usize> {
     reader: Arc<Mutex<RawFileReader<N>>>,
 }
-impl<const N: usize> crate::hal::device::plugin::PluginSeekFacility for RawSeekFacility<N> {
+impl<const N: usize> openevt::hal::device::plugin::PluginSeekFacility for RawSeekFacility<N> {
     fn seek(&mut self, timestamp: EventTimestamp) -> RResult<(), RString> {
         match self.reader.lock().unwrap().seek(timestamp) {
             Ok(()) => RResult::ROk(()),
@@ -141,7 +136,7 @@ impl<const N: usize> crate::hal::device::plugin::PluginSeekFacility for RawSeekF
 struct RawExternalTriggerSeekFacility<const N: usize> {
     reader: Arc<Mutex<RawFileReader<N>>>,
 }
-impl<const N: usize> crate::hal::device::plugin::PluginExternalTriggerSeekFacility
+impl<const N: usize> openevt::hal::device::plugin::PluginExternalTriggerSeekFacility
     for RawExternalTriggerSeekFacility<N>
 {
     fn seek_to_next_ext(&mut self) -> RResult<(), RString> {
@@ -237,7 +232,7 @@ impl DevicePlugin for RawFilePlugin {
                 .into()
             }
             PluginFacilityType::Index => Some(PluginFacilityHandle::Index(
-                crate::hal::device::plugin::PluginIndexFacility_TO::from_value(
+                openevt::hal::device::plugin::PluginIndexFacility_TO::from_value(
                     RawIndexFacility {
                         reader: Arc::clone(&self.reader),
                     },
@@ -246,7 +241,7 @@ impl DevicePlugin for RawFilePlugin {
             ))
             .into(),
             PluginFacilityType::Seek => Some(PluginFacilityHandle::Seek(
-                crate::hal::device::plugin::PluginSeekFacility_TO::from_value(
+                openevt::hal::device::plugin::PluginSeekFacility_TO::from_value(
                     RawSeekFacility {
                         reader: Arc::clone(&self.reader),
                     },
@@ -256,7 +251,7 @@ impl DevicePlugin for RawFilePlugin {
             .into(),
             PluginFacilityType::ExternalTriggerSeek => {
                 Some(PluginFacilityHandle::ExternalTriggerSeek(
-                    crate::hal::device::plugin::PluginExternalTriggerSeekFacility_TO::from_value(
+                    openevt::hal::device::plugin::PluginExternalTriggerSeekFacility_TO::from_value(
                         RawExternalTriggerSeekFacility {
                             reader: Arc::clone(&self.reader),
                         },
@@ -305,10 +300,9 @@ impl DevicePlugin for RawFilePlugin {
     }
 }
 
-#[cfg(not(feature = "library-link"))]
-struct RawFileDiscovery;
+/// Discovery interface advertising EVT3 files as replay devices.
+pub struct RawFileDiscovery;
 
-#[cfg(not(feature = "library-link"))]
 impl DeviceDiscoveryPlugin for RawFileDiscovery {
     fn discover(&self) -> RVec<PluginCameraDescriptionAbi> {
         std::env::var_os("OPENEVT_RAW_FILES")
@@ -364,31 +358,18 @@ impl DeviceDiscoveryPlugin for RawFileDiscovery {
     }
 }
 
-#[cfg(not(feature = "library-link"))]
-extern "C" fn raw_plugin_name() -> RString {
-    "openevt_raw_file".into()
-}
+/// Name this device is advertised under.
+pub const RAW_FILE_PLUGIN_NAME: &str = "openevt_raw_file";
 
-#[cfg(not(feature = "library-link"))]
-extern "C" fn create_raw_discovery() -> DeviceDiscoveryPluginBox {
+/// Builds the raw-file discovery interface for the crate root module.
+pub extern "C" fn create_raw_discovery() -> DeviceDiscoveryPluginBox {
     DeviceDiscoveryPlugin_TO::from_value(RawFileDiscovery, TD_Opaque)
-}
-
-/// Root module constructor for building this module as a plugin cdylib.
-#[cfg(not(feature = "library-link"))]
-#[abi_stable::export_root_module]
-pub fn instantiate_root_module() -> crate::hal::device::plugin::DevicePluginModuleRef {
-    crate::hal::device::plugin::DevicePluginModuleVtable {
-        name: raw_plugin_name,
-        create_discovery: create_raw_discovery,
-    }
-    .leak_into_prefix()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hal::device::plugin::{EventBatchSink, EventBatchSink_TO};
+    use openevt::hal::device::plugin::{EventBatchSink, EventBatchSink_TO};
     use abi_stable::std_types::RSlice;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -408,7 +389,8 @@ mod tests {
 
     #[test]
     fn raw_plugin_preserves_decoded_cd_batch_callbacks() {
-        let path = format!("{}/tests/sample.raw", env!("CARGO_MANIFEST_DIR"));
+        // Shares the core crate's EVT3 fixture rather than duplicating it.
+        let path = format!("{}/../tests/sample.raw", env!("CARGO_MANIFEST_DIR"));
         let mut plugin = RawFilePlugin::open(&path).expect("sample EVT3 file should open");
         CD_BATCHES.store(0, Ordering::Relaxed);
         CD_EVENTS.store(0, Ordering::Relaxed);

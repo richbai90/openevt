@@ -15,15 +15,11 @@ exclude = [".ccls-cache", "openevt-plugins/tools/**"]
 
 [features]
 default = ["all"]
-all = ["devices", "framegen", "plugins", "bundled-plugins"]
+all = ["devices", "framegen", "plugins"]
 devices = ["dep:num-traits", "dep:regex"]
 python = ["devices", "plugins", "dep:pyo3", "dep:numpy"]
 framegen = ["dep:abi_stable"]
 plugins = ["dep:abi_stable"]
-bundled-plugins = ["plugins"]
-# Suppress bundled root-module exports when this crate is linked into another
-# cdylib that exports its own abi_stable root module.
-library-link = []
 
 [dependencies]
 anyhow = "1.0.100"

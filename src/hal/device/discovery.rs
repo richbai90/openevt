@@ -91,10 +91,46 @@ fn is_library(path: &Path) -> bool {
     )
 }
 
+/// Loads the plugin root module exported by one specific library.
+///
+/// [`abi_stable::library::RootModule::load_from_file`] is deliberately not used
+/// here. It memoizes both the loaded library and the root module in
+/// process-global `LateStaticRef`s keyed only on the root-module *type*, so the
+/// first library to be loaded is returned for every later path as well — a host
+/// that loads several plugin libraries would silently get the first one back
+/// each time, and one failed load would poison every subsequent attempt.
+///
+/// Going through [`RawLibrary`] directly keeps each library independent. The
+/// library is leaked on purpose: the returned module borrows from it for
+/// `'static`, and unloading it while a device is still alive would be a
+/// use-after-free.
+#[cfg(feature = "plugins")]
+fn load_root_module(
+    path: &Path,
+) -> Result<DevicePluginModuleRef, abi_stable::library::LibraryError> {
+    let library = RawLibrary::load_at(path)?;
+
+    // SAFETY: `header` borrows from the still-live `library`. On either error
+    // path below it is discarded before `library` is dropped, and on success
+    // `library` is leaked rather than unloaded.
+    let header = unsafe { lib_header_from_raw_library(&library)? };
+    let module = header.init_root_module::<DevicePluginModuleRef>()?;
+
+    // Only now that this really is a plugin do we keep the library loaded
+    // forever. Directory scans walk unrelated shared libraries too, and those
+    // must be unloaded again rather than held open for the whole process.
+    Box::leak(Box::new(library));
+    Ok(module)
+}
+
 /// Runtime registry of loaded discovery plugins.
 #[cfg(feature = "plugins")]
 pub struct PluginRegistry {
-    modules: Vec<(DevicePluginModuleRef, DeviceDiscoveryPluginBox)>,
+    /// One entry per device, not per library: a library exporting several
+    /// devices contributes one entry each, paired with the name it is
+    /// advertised under. The libraries themselves are leaked by
+    /// [`load_root_module`], so entries do not have to keep them alive.
+    modules: Vec<(String, DeviceDiscoveryPluginBox)>,
 }
 
 #[cfg(feature = "plugins")]
@@ -140,13 +176,29 @@ impl PluginRegistry {
             .count() as u64
     }
 
-    /// Loads one plugin library and registers its discovery interface.
+    /// Loads one plugin library and registers every discovery interface it
+    /// exports.
+    ///
+    /// Libraries built against the multi-device vtable expose one named
+    /// discovery per device; older single-device libraries only expose
+    /// `create_discovery`, and are registered under the module name.
     pub fn load_file(&mut self, path: &Path) -> Result<(), abi_stable::library::LibraryError> {
-        let module = DevicePluginModuleRef::load_from_file(path)?;
-        let discovery = (module
-            .create_discovery()
-            .expect("plugin constructor missing"))();
-        self.modules.push((module, discovery));
+        let module = load_root_module(path)?;
+        let module_name = module.name().expect("plugin name symbol missing")().to_string();
+
+        match module.create_discoveries() {
+            Some(create_discoveries) => {
+                for entry in create_discoveries() {
+                    self.modules.push((entry.name.to_string(), entry.discovery));
+                }
+            }
+            None => {
+                let discovery = (module
+                    .create_discovery()
+                    .expect("plugin constructor missing"))();
+                self.modules.push((module_name, discovery));
+            }
+        }
         Ok(())
     }
 
@@ -154,8 +206,7 @@ impl PluginRegistry {
     pub fn list_devices(&self) -> Vec<CameraDescription> {
         self.modules
             .iter()
-            .flat_map(|(module, discovery)| {
-                let plugin_name = module.name().expect("plugin name symbol missing")().to_string();
+            .flat_map(|(plugin_name, discovery)| {
                 discovery
                     .discover()
                     .into_iter()
@@ -169,14 +220,34 @@ impl PluginRegistry {
     }
 
     /// Opens the plugin device matching `serial`.
+    ///
+    /// On failure the rejection from every plugin that was tried is reported.
+    /// A bare "not found" hides the common cases behind an unrelated-looking
+    /// message: no plugin library was on the search path at all, or the right
+    /// plugin did claim the serial and failed for its own reason (a missing
+    /// recording, a busy camera).
     pub fn open_device(&self, serial: &str) -> Result<super::plugin::DevicePluginBox, String> {
-        for (_, discovery) in &self.modules {
+        let mut rejections: Vec<String> = Vec::new();
+        for (plugin_name, discovery) in &self.modules {
             match discovery.open_device(serial.into()) {
                 abi_stable::std_types::RResult::ROk(device) => return Ok(device),
-                abi_stable::std_types::RResult::RErr(_) => continue,
+                abi_stable::std_types::RResult::RErr(error) => {
+                    rejections.push(format!("{plugin_name}: {error}"));
+                }
             }
         }
-        Err(format!("no plugin device found for serial {serial}"))
+
+        if rejections.is_empty() {
+            return Err(format!(
+                "no device plugins are loaded, so nothing could open serial \
+                 {serial}; configure OPENEVT_PLUGIN_PATH"
+            ));
+        }
+        Err(format!(
+            "no plugin device found for serial {serial}; tried {} plugin(s): {}",
+            rejections.len(),
+            rejections.join("; ")
+        ))
     }
 
     /// Retrieves and parses the creation schema for a discovered device.
@@ -292,4 +363,4 @@ use std::{env, fs};
 #[cfg(feature = "plugins")]
 use super::plugin::{DeviceDiscoveryPluginBox, DevicePluginModuleRef};
 #[cfg(feature = "plugins")]
-use abi_stable::library::RootModule;
+use abi_stable::library::{RawLibrary, lib_header_from_raw_library};

@@ -867,6 +867,7 @@ name = "openevt-plugins"
 version = "1.0.4"
 dependencies = [
  "abi_stable",
+ "crossbeam",
  "ffmpeg-next",
  "hotpath",
  "openevt",

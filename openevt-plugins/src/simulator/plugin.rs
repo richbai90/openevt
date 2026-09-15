@@ -15,7 +15,7 @@ use openevt::hal::device::configuration::PluginConfigurationSchema;
 use openevt::hal::device::discovery::ConnectionType;
 use openevt::hal::device::plugin::{
     self, DeviceDiscoveryPlugin, DeviceDiscoveryPlugin_TO, DeviceDiscoveryPluginBox,
-    DevicePlugin_TO, DevicePluginBox, DevicePluginModuleRef, DevicePluginModuleVtable,
+    DevicePlugin_TO, DevicePluginBox,
     EventBatchSinkBox, PluginCameraDescriptionAbi, PluginConfiguration,
     PluginEventSubscriptionFacility, PluginEventSubscriptionFacility_TO, PluginFacility,
     PluginFacilityHandle, PluginFacilityType, PluginGeometry, PluginGeometryFacility,
@@ -924,7 +924,8 @@ impl plugin::DevicePlugin for SimulatorDevice {
     }
 }
 
-struct SimulatorDiscovery;
+/// Discovery interface advertising the software event simulator.
+pub struct SimulatorDiscovery;
 
 impl DeviceDiscoveryPlugin for SimulatorDiscovery {
     fn discover(&self) -> RVec<PluginCameraDescriptionAbi> {
@@ -964,22 +965,12 @@ impl DeviceDiscoveryPlugin for SimulatorDiscovery {
     }
 }
 
-extern "C" fn simulator_plugin_name() -> RString {
-    "openevt_simulator".into()
-}
+/// Name this device is advertised under.
+pub const SIMULATOR_PLUGIN_NAME: &str = "openevt_simulator";
 
-extern "C" fn create_simulator_discovery() -> DeviceDiscoveryPluginBox {
+/// Builds the simulator discovery interface for the crate root module.
+pub extern "C" fn create_simulator_discovery() -> DeviceDiscoveryPluginBox {
     DeviceDiscoveryPlugin_TO::from_value(SimulatorDiscovery, TD_Opaque)
-}
-
-/// Constructs the simulator plugin root module.
-#[abi_stable::export_root_module]
-pub fn instantiate_root_module() -> DevicePluginModuleRef {
-    DevicePluginModuleVtable {
-        name: simulator_plugin_name,
-        create_discovery: create_simulator_discovery,
-    }
-    .leak_into_prefix()
 }
 
 #[cfg(test)]

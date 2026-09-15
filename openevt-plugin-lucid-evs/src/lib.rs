@@ -2,20 +2,30 @@ mod device;
 mod discovery;
 
 use abi_stable::prefix_type::PrefixTypeTrait;
-use abi_stable::std_types::RString;
+use abi_stable::std_types::{RString, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
 use discovery::LucidEvsDiscovery;
 use openevt::hal::device::plugin::{
     DeviceDiscoveryPlugin_TO, DeviceDiscoveryPluginBox, DevicePluginModuleRef,
-    DevicePluginModuleVtable,
+    DevicePluginModuleVtable, NamedDiscoveryPlugin,
 };
 
+const PLUGIN_NAME: &str = "lucid_triton_evs";
+
 extern "C" fn plugin_name() -> RString {
-    "lucid_triton_evs".into()
+    PLUGIN_NAME.into()
 }
 
 extern "C" fn create_discovery() -> DeviceDiscoveryPluginBox {
     DeviceDiscoveryPlugin_TO::from_value(LucidEvsDiscovery, TD_Opaque)
+}
+
+extern "C" fn create_discoveries() -> RVec<NamedDiscoveryPlugin> {
+    vec![NamedDiscoveryPlugin {
+        name: PLUGIN_NAME.into(),
+        discovery: create_discovery(),
+    }]
+    .into()
 }
 
 #[abi_stable::export_root_module]
@@ -23,6 +33,7 @@ pub fn instantiate_root_module() -> DevicePluginModuleRef {
     DevicePluginModuleVtable {
         name: plugin_name,
         create_discovery,
+        create_discoveries,
     }
     .leak_into_prefix()
 }

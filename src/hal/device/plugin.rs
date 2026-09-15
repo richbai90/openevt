@@ -784,6 +784,22 @@ pub trait DeviceDiscoveryPlugin: Send + Sync {
 /// ABI-safe boxed device-discovery plugin.
 pub type DeviceDiscoveryPluginBox = DeviceDiscoveryPlugin_TO<'static, RBox<()>>;
 
+/// One named discovery interface exported by a plugin library.
+///
+/// A single shared library can only export one `abi_stable` root module, so a
+/// library that ships several devices (see the `openevt-plugins` crate) returns
+/// one of these per device rather than one discovery for the whole module. The
+/// name travels with the discovery so each device keeps its own identity in
+/// [`super::discovery::CameraDescription::plugin_name`].
+#[repr(C)]
+#[derive(StableAbi)]
+pub struct NamedDiscoveryPlugin {
+    /// Display name of the device this discovery exposes.
+    pub name: RString,
+    /// The discovery interface itself.
+    pub discovery: DeviceDiscoveryPluginBox,
+}
+
 #[derive(StableAbi)]
 #[repr(C)]
 #[sabi(kind(Prefix(prefix_ref = DevicePluginModuleRef)))]
@@ -791,7 +807,18 @@ pub struct DevicePluginModuleVtable {
     /// Returns the plugin's display name.
     pub name: extern "C" fn() -> RString,
     /// Creates the plugin's discovery interface.
+    ///
+    /// Single-device libraries only need this. Libraries exporting several
+    /// devices should populate [`Self::create_discoveries`] as well and leave
+    /// this pointing at whichever device is the most sensible default, so that
+    /// hosts built against the older vtable keep working.
     pub create_discovery: extern "C" fn() -> DeviceDiscoveryPluginBox,
+    /// Creates every discovery interface exported by this library.
+    ///
+    /// Appended after `create_discovery`, so its accessor yields `None` for
+    /// plugins compiled against the earlier vtable; the host then falls back to
+    /// `create_discovery`.
+    pub create_discoveries: extern "C" fn() -> RVec<NamedDiscoveryPlugin>,
 }
 
 impl RootModule for DevicePluginModuleRef {
