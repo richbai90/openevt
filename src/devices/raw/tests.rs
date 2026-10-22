@@ -8,7 +8,7 @@ use openevt_core::hal::facilities::{
     EventSubscriptionFacilityHandle, FacilityError, FacilityType,
     RawEventStreamDecoderFacilityHandle, RawEventStreamFacilityHandle,
 };
-use openevt_core::hal::types::EventCD;
+use openevt_core::types::EventCD;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -120,7 +120,7 @@ fn test_raw_file_reader_requires_index_for_seek() -> TestResult {
 
     let err = reader.seek(0).expect_err("Seek without an index must fail");
     assert!(
-        matches!(err, crate::types::DeviceFileError::UnsupportedBehavior(_)),
+        matches!(err, crate::device_types::DeviceFileError::UnsupportedBehavior(_)),
         "Expected UnsupportedBehavior, got {err:?}"
     );
 
@@ -135,19 +135,19 @@ fn default_reader_rejects_operations_until_opened() {
     assert_eq!(reader.shape(), (0, 0));
     assert!(matches!(
         reader.load_batch(),
-        Err(crate::types::DeviceFileError::NotInitialized)
+        Err(crate::device_types::DeviceFileError::NotInitialized)
     ));
     assert!(matches!(
         reader.cd_receiver(),
-        Err(crate::types::DeviceFileError::NotInitialized)
+        Err(crate::device_types::DeviceFileError::NotInitialized)
     ));
     assert!(matches!(
         reader.roi(),
-        Err(crate::types::DeviceFileError::UnsupportedFacility(_))
+        Err(crate::device_types::DeviceFileError::UnsupportedFacility(_))
     ));
     assert!(matches!(
         reader.seek(0),
-        Err(crate::types::DeviceFileError::NotInitialized)
+        Err(crate::device_types::DeviceFileError::NotInitialized)
     ));
 }
 
@@ -241,7 +241,7 @@ fn sync_iterator_caps_batches_and_preserves_leftovers() -> TestResult {
     > = Arc::new(RwLock::new(
         crate::raw::decoder::RawEventStreamDecoder::new(
             &crate::header::Header {
-                format: crate::types::FileFormat::EVT3,
+                format: crate::device_types::FileFormat::EVT3,
                 width: 1280,
                 height: 720,
                 metadata: Default::default(),

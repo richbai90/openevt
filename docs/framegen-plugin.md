@@ -38,7 +38,7 @@ Minimal generator skeleton:
 use abi_stable::{sabi_trait, std_types::{ROption, RSlice, RSliceMut}};
 use openevt::{
     framegen::{FrameGenerator, FrameSpec},
-    hal::types::{EventCD, EventTimestamp},
+    types::{EventCD, EventTimestamp},
 };
 
 pub struct Example {

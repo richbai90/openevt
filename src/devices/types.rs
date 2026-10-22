@@ -1,17 +1,16 @@
-//! Shared types used by the raw file reader and iterator layers.
+//! Device-specific types used by the raw file reader and iterator layers.
 //!
-//! These types cover errors, file format handling, raw buffer storage, and
-//! indexing support for timestamp-based seeking.
+//! These types are only compiled with the `devices` feature and cover errors,
+//! file format handling, raw buffer storage, and indexing support for
+//! timestamp-based seeking. Shared/global event types live in
+//! [`crate::types`] and are referenced from there, not re-exported here.
 
 use crossbeam::channel::TryRecvError;
-
-pub use openevt_core::hal::types::{
-    EventCD, EventCoordinate, EventCount, EventExtTrigger, EventId, EventTimestamp,
-};
 use openevt_core::hal::{
     decoders::evt3::{DecoderTimingState, Evt3Decoder},
     facilities::{self, FacilityError},
 };
+use openevt_core::types::EventTimestamp;
 use std::fmt::Display;
 use thiserror::Error;
 

@@ -1,5 +1,5 @@
 use crate::algorithms::EvtProcessor;
-use crate::hal::types::EventCD;
+use crate::types::EventCD;
 use derive_new::new;
 
 #[derive(new)]

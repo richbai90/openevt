@@ -35,7 +35,7 @@ mod plugin_adapter {
         ROIFacility, RawDecoderFacility, RawEventStreamDecoderFacility, RawEventStreamFacility,
         SensorInfo, StreamBuffer, SystemInfo,
     };
-    use crate::hal::types::EventTimestamp;
+    use crate::types::EventTimestamp;
 
     use abi_stable::{
         std_types::{RSlice, RString},
@@ -137,7 +137,7 @@ mod plugin_adapter {
         }
         fn set_roi(
             &mut self,
-            region: crate::hal::types::Region,
+            region: crate::types::Region,
         ) -> crate::hal::facilities::FacilityResult<()> {
             let region = crate::hal::device::plugin::PluginRegion {
                 x: region.0,
@@ -152,7 +152,7 @@ mod plugin_adapter {
         }
         fn set_rois(
             &mut self,
-            regions: &[crate::hal::types::Region],
+            regions: &[crate::types::Region],
         ) -> crate::hal::facilities::FacilityResult<()> {
             let regions: Vec<_> = regions
                 .iter()
@@ -168,13 +168,13 @@ mod plugin_adapter {
                 .into_result()
                 .map_err(|e| FacilityError::Plugin(e.to_string()))
         }
-        fn roi(&self) -> Option<crate::hal::types::Region> {
+        fn roi(&self) -> Option<crate::types::Region> {
             self.roi
                 .roi()
                 .into_option()
                 .map(|r| (r.x, r.y, r.width, r.height))
         }
-        fn rois(&self) -> Option<Vec<crate::hal::types::Region>> {
+        fn rois(&self) -> Option<Vec<crate::types::Region>> {
             let regions = self.roi.rois();
             if regions.is_empty() {
                 None
@@ -195,12 +195,12 @@ mod plugin_adapter {
     }
 
     impl crate::hal::device::plugin::EventBatchSink for PluginEventSink {
-        fn on_cd_events(&self, events: RSlice<'_, crate::hal::types::EventCD>) {
+        fn on_cd_events(&self, events: RSlice<'_, crate::types::EventCD>) {
             if let Some(callback) = &self.cd {
                 (callback.lock().unwrap())(events.as_slice());
             }
         }
-        fn on_ext_events(&self, events: RSlice<'_, crate::hal::types::EventExtTrigger>) {
+        fn on_ext_events(&self, events: RSlice<'_, crate::types::EventExtTrigger>) {
             if let Some(callback) = &self.ext {
                 (callback.lock().unwrap())(events.as_slice());
             }

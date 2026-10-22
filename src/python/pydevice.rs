@@ -1,7 +1,8 @@
 use crate::hal::device::discovery::PluginRegistry;
 use crate::hal::device::plugin::{DevicePluginBox, EventBatchSink, EventBatchSink_TO};
-use crate::hal::types::{EventCount, EventTimestamp};
-use crate::types::{DeviceFileError, EventCD};
+use crate::types::{EventCount, EventTimestamp};
+use crate::device_types::DeviceFileError;
+use crate::types::EventCD;
 use abi_stable::{std_types::RSlice, type_level::downcasting::TD_Opaque};
 use crossbeam::channel::{Receiver, Sender};
 use numpy::{Element, PyArray1, PyArrayDescr, PyReadonlyArray1};

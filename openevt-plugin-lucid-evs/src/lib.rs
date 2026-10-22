@@ -53,9 +53,17 @@ mod tests {
     #[test]
     fn configuration_schema_is_valid() {
         let schema = PluginConfigurationSchema::parse(CONFIGURATION_SCHEMA).unwrap();
-        assert_eq!(schema.parameters.len(), 2);
-        assert_eq!(schema.parameters[0].name, "frame_timeout_ms");
-        assert_eq!(schema.parameters[1].name, "destination_port");
+        let names: Vec<_> = schema.parameters.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "frame_timeout_ms",
+                "destination_port",
+                "packet_size",
+                "sensor_width",
+                "sensor_height"
+            ]
+        );
     }
 
     #[test]

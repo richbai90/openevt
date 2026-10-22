@@ -1,12 +1,15 @@
 pub mod activity_noise_filter;
 pub mod anti_flicker_filter;
+pub mod histogram;
+pub mod integral_image;
 pub mod polarity_filter;
 pub mod roi_filter;
 pub mod spatio_temporal_contrast;
+pub mod tensor;
 pub mod time_surface;
 pub mod trail_filter;
 
-use crate::hal::types::EventCD;
+use crate::types::EventCD;
 
 pub trait EvtTransformer {
     type Output;
@@ -37,6 +40,8 @@ pub mod filters {
 }
 
 pub mod transformers {
+    pub use super::histogram::HistogramTransformer;
+    pub use super::integral_image::IntegralImageTransformer;
     pub use super::time_surface::{
         BaseTimeSurfaceTransformer, ExponentialDecayTimeSurfaceTransformer,
         LinearDecayTimeSurfaceTransformer,
@@ -126,5 +131,8 @@ mod tests {
             transformers::LinearDecayTimeSurfaceTransformer::new(1, 1, 10);
         let _: transformers::ExponentialDecayTimeSurfaceTransformer =
             transformers::ExponentialDecayTimeSurfaceTransformer::new(1, 1, 10);
+        let _: transformers::HistogramTransformer = transformers::HistogramTransformer::new(1, 1);
+        let _: transformers::IntegralImageTransformer =
+            transformers::IntegralImageTransformer::new(1, 1);
     }
 }

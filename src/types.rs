@@ -1,8 +1,19 @@
-//! Shared event, callback, geometry, and pixel-mask types.
+//! Global types shared across openevt.
+//!
+//! These types are always available regardless of feature selection. They are
+//! the single home for types needed by multiple modules or features: the event
+//! scalars, the decoded event structs, and the shared callback/geometry types.
+//!
+//! Types that cross the plugin ABI additionally derive `StableAbi` and are
+//! marked `#[repr(C)]` behind the relevant feature, so the core can be built
+//! without `abi_stable`. Device-specific types live in [`crate::device_types`]
+//! (gated by `devices`); algorithm types live in [`crate::algorithms`].
 
 use crate::new;
 
+#[cfg(feature = "plugins")]
 use abi_stable::StableAbi;
+#[cfg(feature = "plugins")]
 use slotmap::{DefaultKey, Key, KeyData};
 
 /// Fixed-width scalar used for decoded event coordinates.
@@ -84,12 +95,24 @@ impl PixelMask {
     }
 }
 
+/// FFI-safe wrapper around a `slotmap` key, used to cross the plugin ABI.
+///
+/// Only available when the `plugins` feature is enabled, since it exists solely
+/// to move marker keys across the stable-ABI boundary.
+#[cfg(feature = "plugins")]
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, StableAbi)]
 pub struct FfiKey {
     pub data: u64,
 }
 
+/// Public re-export so external crates (e.g. plugins) can convert an
+/// [`FfiKey`] back to a `slotmap::DefaultKey` without depending on
+/// `slotmap` themselves.
+#[cfg(feature = "plugins")]
+pub use slotmap::DefaultKey as SlotmapKey;
+
+#[cfg(feature = "plugins")]
 impl From<DefaultKey> for FfiKey {
     #[inline]
     fn from(key: DefaultKey) -> Self {
@@ -99,6 +122,7 @@ impl From<DefaultKey> for FfiKey {
     }
 }
 
+#[cfg(feature = "plugins")]
 impl From<FfiKey> for DefaultKey {
     #[inline]
     fn from(ffi_key: FfiKey) -> Self {

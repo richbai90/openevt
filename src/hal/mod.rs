@@ -14,5 +14,3 @@ pub mod dispatcher;
 pub mod errors;
 /// Facility traits, handles, and capability identifiers.
 pub mod facilities;
-/// Shared event and callback types.
-pub mod types;

@@ -1,7 +1,7 @@
 use derive_new::new;
 
 use crate::algorithms::EvtProcessor;
-use crate::hal::types::{EventCD, EventCoordinate};
+use crate::types::{EventCD, EventCoordinate};
 
 #[derive(new)]
 pub struct RoiFilter {

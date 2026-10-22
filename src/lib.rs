@@ -55,6 +55,8 @@ pub mod buffer;
 pub mod framegen;
 /// Shared HAL abstractions.
 pub mod hal;
+/// Global event, scalar, callback, and geometry types shared across features.
+pub mod types;
 
 #[cfg(feature = "devices")]
 #[path = "devices/device_macros.rs"]
@@ -69,7 +71,7 @@ pub mod header;
 mod raw;
 #[cfg(feature = "devices")]
 #[path = "devices/types.rs"]
-pub mod types;
+pub mod device_types;
 
 pub mod algorithms;
 

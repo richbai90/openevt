@@ -22,8 +22,8 @@ use crate::hal::errors::{
     DecoderError, DecoderProtocolViolation, HardwareError, ProcessingError, SharedError,
     StreamError,
 };
-use crate::hal::types::{CallbackId, Cb, CbRo, EventTimestamp, PixelMask, Region, StreamLength};
-use crate::hal::types::{EventCD, EventExtTrigger};
+use crate::types::{CallbackId, Cb, CbRo, EventTimestamp, PixelMask, Region, StreamLength};
+use crate::types::{EventCD, EventExtTrigger};
 pub use macros::pack_facility;
 use slotmap::DefaultKey;
 use std::sync::{Arc, RwLock};

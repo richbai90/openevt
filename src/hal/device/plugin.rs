@@ -14,8 +14,8 @@ use abi_stable::{
 };
 
 use super::discovery::ConnectionType;
-use crate::hal::types::{EventCD, EventExtTrigger, EventTimestamp, StreamLength};
-use crate::hal::{facilities::FacilityType, types::FfiKey};
+use crate::types::{EventCD, EventExtTrigger, EventTimestamp, StreamLength};
+use crate::{hal::facilities::FacilityType, types::FfiKey};
 
 /// One named plugin creation value.
 ///

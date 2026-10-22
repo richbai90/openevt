@@ -1,5 +1,8 @@
 use crate::{
-    algorithms::EvtTransformer,
+    algorithms::{
+        EvtTransformer,
+        tensor::{ChannelMode, Tensor, tensor_from_polarities},
+    },
     types::{EventCD, EventCoordinate, EventTimestamp},
 };
 
@@ -32,6 +35,21 @@ impl BaseTimeSurface {
     }
     pub fn height(&self) -> EventCoordinate {
         self.height
+    }
+
+    /// Materializes the stored per-pixel last-event timestamps as a tensor.
+    ///
+    /// In single-channel mode the combined pixel is the most recent (maximum)
+    /// timestamp across both polarities.
+    pub fn to_tensor(&self, mode: ChannelMode) -> Tensor {
+        tensor_from_polarities(
+            self.width,
+            self.height,
+            mode,
+            |x, y| self.get(x, y, true) as f64,
+            |x, y| self.get(x, y, false) as f64,
+            |pos, neg| pos.max(neg),
+        )
     }
 
     #[inline]
@@ -101,6 +119,21 @@ impl LinearDecayTimeSurface {
 
     pub fn height(&self) -> EventCoordinate {
         self.surface.height()
+    }
+
+    /// Materializes the linearly decayed per-pixel values as a tensor.
+    ///
+    /// Single-channel mode combines both polarities by summing the two
+    /// per-pixel intensities.
+    pub fn to_tensor(&self, mode: ChannelMode) -> Tensor {
+        tensor_from_polarities(
+            self.surface.width(),
+            self.surface.height(),
+            mode,
+            |x, y| self.get(x, y, true),
+            |x, y| self.get(x, y, false),
+            |pos, neg| pos + neg,
+        )
     }
 }
 
@@ -216,6 +249,21 @@ impl ExponentialDecayTimeSurface {
 
     pub fn height(&self) -> EventCoordinate {
         self.surface.height()
+    }
+
+    /// Materializes the exponentially decayed per-pixel values as a tensor.
+    ///
+    /// Single-channel mode combines both polarities by summing the two
+    /// per-pixel intensities.
+    pub fn to_tensor(&self, mode: ChannelMode) -> Tensor {
+        tensor_from_polarities(
+            self.surface.width(),
+            self.surface.height(),
+            mode,
+            |x, y| self.get(x, y, true),
+            |x, y| self.get(x, y, false),
+            |pos, neg| pos + neg,
+        )
     }
 }
 
@@ -371,5 +419,51 @@ mod tests {
 
         assert_close(surface.get(0, 0, true), (-1.0f64).exp());
         assert_close(surface.get(1, 0, true), 1.0);
+    }
+
+    #[test]
+    fn base_time_surface_to_tensor_uses_max_for_single_channel() {
+        let mut surface = BaseTimeSurface::new(2, 1);
+        surface.update(0, 0, true, 100);
+        surface.update(0, 0, false, 50);
+        surface.update(1, 0, true, 200);
+
+        let dual = surface.to_tensor(ChannelMode::Dual);
+        assert_eq!(dual.at(0, 0, 0), 100.0);
+        assert_eq!(dual.at(1, 0, 0), 50.0);
+        assert_eq!(dual.at(0, 1, 0), 200.0);
+        assert_eq!(dual.at(1, 1, 0), 0.0);
+
+        let single = surface.to_tensor(ChannelMode::Single);
+        assert_eq!(single.at(0, 0, 0), 100.0);
+        assert_eq!(single.at(0, 1, 0), 200.0);
+    }
+
+    #[test]
+    fn linear_decay_to_tensor_sums_polarities_in_single_channel() {
+        let mut surface = LinearDecayTimeSurface::new(1, 1, 100);
+        surface.update(0, 0, true, 100);
+        surface.update(0, 0, false, 100);
+
+        let dual = surface.to_tensor(ChannelMode::Dual);
+        assert_close(dual.at(0, 0, 0), 1.0);
+        assert_close(dual.at(1, 0, 0), 1.0);
+
+        let single = surface.to_tensor(ChannelMode::Single);
+        assert_close(single.at(0, 0, 0), 2.0);
+    }
+
+    #[test]
+    fn exponential_decay_to_tensor_sums_polarities_in_single_channel() {
+        let mut surface = ExponentialDecayTimeSurface::new(1, 1, 10);
+        surface.update(0, 0, true, 100);
+        surface.update(0, 0, false, 105);
+
+        let dual = surface.to_tensor(ChannelMode::Dual);
+        assert_close(dual.at(0, 0, 0), (-0.5f64).exp());
+        assert_close(dual.at(1, 0, 0), 1.0);
+
+        let single = surface.to_tensor(ChannelMode::Single);
+        assert_close(single.at(0, 0, 0), (-0.5f64).exp() + 1.0);
     }
 }

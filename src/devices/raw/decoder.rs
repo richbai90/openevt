@@ -1,12 +1,12 @@
 use crate::header::Header;
-use crate::types::FileFormat;
+use crate::device_types::FileFormat;
 use openevt_core::hal::decoders::evt3::{DecoderTimingState, Evt3Decoder};
 use openevt_core::hal::decoders::raw_fmt_decoder::RawFormatDecoder;
 use openevt_core::hal::facilities::{
     DecoderErrorCallback, EventCDCallback, EventExtTriggerCallback, EventSubscriptionFacility,
     FacilityError, FacilityResult, RawDecoderFacility, RawEventStreamDecoderFacility,
 };
-use openevt_core::hal::types::EventTimestamp;
+use openevt_core::types::EventTimestamp;
 use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]

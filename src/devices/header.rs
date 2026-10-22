@@ -1,4 +1,4 @@
-use crate::types::{DeviceFileError, FileFormat};
+use crate::device_types::{DeviceFileError, FileFormat};
 use openevt_core::hal::facilities::SensorInfo;
 use std::collections::HashMap;
 use std::io::BufRead;

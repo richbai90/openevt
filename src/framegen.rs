@@ -13,7 +13,7 @@ use abi_stable::{
     std_types::{ROption, RSlice, RSliceMut, RString},
 };
 
-use crate::hal::types::{EventCD, EventTimestamp};
+use crate::types::{EventCD, EventTimestamp};
 
 /// Frame dimensions and pixel format metadata.
 /// An RGB color returned by a frame-generator colormap.

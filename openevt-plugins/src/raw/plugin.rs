@@ -33,7 +33,7 @@ use openevt::hal::device::plugin::{
     DevicePlugin, EventBatchSinkBox, PluginFacility, PluginFacilityHandle, PluginFacilityType,
     PluginGeometry, PluginGeometryFacility, PluginGeometryFacility_TO,
 };
-use openevt::hal::types::{EventCD, EventExtTrigger, EventTimestamp};
+use openevt::types::{EventCD, EventExtTrigger, EventTimestamp};
 use openevt::RawFileReader;
 
 // Keep the example's stack footprint aligned with the normal reader tests;

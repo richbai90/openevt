@@ -12,7 +12,7 @@ use crate::hal::facilities::{
     DecoderErrorCallback, EventCDCallback, EventExtTriggerCallback, EventSubscriptionFacility,
     FacilityResult, RawDecoderFacility, RawEventStreamDecoderFacility,
 };
-use crate::hal::types::{EventCD, EventExtTrigger, EventTimestamp};
+use crate::types::{EventCD, EventExtTrigger, EventTimestamp};
 use log::warn;
 use macros::new;
 use slotmap::{DefaultKey, SlotMap};

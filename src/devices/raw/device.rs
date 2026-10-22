@@ -2,7 +2,7 @@ use crate::header::Header;
 use crate::raw::decoder::RawEventStreamDecoder;
 use crate::raw::facilities::{RawReaderGeometry, RawReaderHWIdentification, RawReaderROI};
 use crate::raw::stream::RawEventStream;
-use crate::types::{DeviceFileError, FileFormat};
+use crate::device_types::{DeviceFileError, FileFormat};
 use openevt_core::hal::device::device::Device;
 use openevt_core::hal::facilities::{FacilityHandle, FacilityType};
 use std::collections::HashMap;

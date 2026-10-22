@@ -4,7 +4,7 @@
 //! by the HAL. It reads fixed-size buffers and keeps track of whether the stream
 //! has started and whether EOF has already been reached.
 
-use crate::types::RawEventBuffer;
+use crate::device_types::RawEventBuffer;
 use openevt_core::hal::errors::StreamError;
 use openevt_core::hal::facilities::{FacilityError, FacilityResult, RawEventStreamFacility};
 use std::fs::File;

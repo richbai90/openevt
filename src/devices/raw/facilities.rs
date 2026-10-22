@@ -5,8 +5,8 @@
 //! directly from the file contents.
 
 use crate::header::{Header, sensor_info_from_header};
-use openevt_core::hal::{
-    facilities::{
+use openevt_core::{
+    hal::facilities::{
         ConnectionType, FacilityResult, GeometryFacility, HWIdentificationFacility, ROIFacility,
         SensorInfo, SystemInfo,
     },
@@ -36,12 +36,12 @@ impl ROIFacility for RawReaderROI {
         Ok(())
     }
 
-    fn set_roi(&mut self, region: openevt_core::hal::types::Region) -> FacilityResult<()> {
+    fn set_roi(&mut self, region: openevt_core::types::Region) -> FacilityResult<()> {
         self.roi_ = Some(region);
         Ok(())
     }
 
-    fn set_rois(&mut self, regions: &[openevt_core::hal::types::Region]) -> FacilityResult<()> {
+    fn set_rois(&mut self, regions: &[openevt_core::types::Region]) -> FacilityResult<()> {
         self.rois_ = Some(regions.to_vec());
         Ok(())
     }

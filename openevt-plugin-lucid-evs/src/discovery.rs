@@ -1,4 +1,4 @@
-use crate::device::LucidEvsDevice;
+use crate::device::{DEFAULT_HEIGHT, DEFAULT_WIDTH, LucidEvsDevice};
 use abi_stable::std_types::{RResult, RString, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
 use openevt::hal::device::discovery::ConnectionType;
@@ -28,6 +28,30 @@ kind = "integer"
 required = false
 default = "10040"
 description = "UDP port the camera sends GVSP packets to. Triton EVS cameras default to 10040."
+
+[[parameters]]
+name = "packet_size"
+label = "GVSP packet size (bytes)"
+kind = "integer"
+required = false
+default = "0"
+description = "GVSP packet size ceiling in bytes. 0 (default) probes the largest packet size the network path supports on connection, starting from the host NIC MTU. Set a specific value (e.g. 8192 or 1500) to use it as the negotiated ceiling instead."
+
+[[parameters]]
+name = "sensor_width"
+label = "Sensor width (px)"
+kind = "integer"
+required = false
+default = "640"
+description = "Actual sensor width in pixels. Events outside these coordinate bounds are discarded by the EVT3 decoder, so this must match the camera's real resolution (e.g. 1280 for the TRT009S-E)."
+
+[[parameters]]
+name = "sensor_height"
+label = "Sensor height (px)"
+kind = "integer"
+required = false
+default = "480"
+description = "Actual sensor height in pixels. Events outside these coordinate bounds are discarded by the EVT3 decoder, so this must match the camera's real resolution (e.g. 720 for the TRT009S-E)."
 "#;
 
 /// Default GVCP discovery timeout used when the plugin auto-detects cameras.
@@ -155,11 +179,47 @@ impl DeviceDiscoveryPlugin for LucidEvsDiscovery {
             Ok(value) => value as u16,
             Err(error) => return RResult::RErr(error.into()),
         };
+        let fit_u16 = |name: &str, value: u64| -> Result<u16, RString> {
+            u16::try_from(value).map_err(|_| format!("{name} must fit in a u16").into())
+        };
+        let sensor_width = match parsed_integer("sensor_width", u64::from(DEFAULT_WIDTH)) {
+            Ok(value) => match fit_u16("sensor_width", value) {
+                Ok(value) => value,
+                Err(error) => return RResult::RErr(error),
+            },
+            Err(error) => return RResult::RErr(error.into()),
+        };
+        let sensor_height = match parsed_integer("sensor_height", u64::from(DEFAULT_HEIGHT)) {
+            Ok(value) => match fit_u16("sensor_height", value) {
+                Ok(value) => value,
+                Err(error) => return RResult::RErr(error),
+            },
+            Err(error) => return RResult::RErr(error.into()),
+        };
+        // 0 or absent means "probe the path for the largest workable packet
+        // size"; any other value is an explicit ceiling handed to the stream
+        // builder, which still path-probes below it.
+        let packet_size = configuration
+            .values
+            .iter()
+            .find(|value| value.name.as_str() == "packet_size")
+            .and_then(|value| value.value.clone().into_option());
+        let packet_size = match packet_size {
+            Some(raw) => match raw.as_str().parse::<u32>() {
+                Ok(0) => None,
+                Ok(value) => Some(value),
+                Err(error) => return RResult::RErr(format!("invalid packet_size: {error}").into()),
+            },
+            None => None,
+        };
 
         match LucidEvsDevice::open(
             device.ip,
             Duration::from_millis(frame_timeout_ms),
             destination_port,
+            packet_size,
+            sensor_width,
+            sensor_height,
         ) {
             Ok(opened) => RResult::ROk(DevicePlugin_TO::from_value(opened, TD_Opaque)),
             Err(error) => RResult::RErr(error.into()),

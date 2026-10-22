@@ -14,14 +14,15 @@ use crate::raw::decoder::RawEventStreamDecoder;
 use crate::raw::device::RawFileHandler;
 use crate::raw::stream::RawEventStream;
 use crate::raw::{IterUnconfigured, index};
-use crate::types::{DeviceFileError, EventTimestamp, FileIndex};
+use crate::types::EventTimestamp;
+use crate::device_types::{DeviceFileError, FileIndex};
 use crossbeam::channel::Receiver;
 use openevt_core::hal::device::device::Device;
 use openevt_core::hal::facilities::{
     EventSubscriptionFacilityHandle, FacilityError, FacilityType, ROIFacilityHandle,
     RawEventStreamDecoderFacilityHandle, RawEventStreamFacility, RawEventStreamFacilityHandle,
 };
-use openevt_core::hal::types::{EventCD, EventExtTrigger};
+use openevt_core::types::{EventCD, EventExtTrigger};
 use std::sync::Arc;
 
 /// Reads and decodes an event-camera raw file.

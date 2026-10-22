@@ -3,10 +3,17 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use abi_stable::std_types::{RResult, RSlice, RVec};
+use abi_stable::rvec;
+use abi_stable::std_types::{ROption, RResult, RSlice, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
 use openevt::hal::device::discovery::PluginRegistry;
-use openevt::hal::device::plugin::{EventBatchSink, EventBatchSink_TO, PluginConfiguration};
+use openevt::hal::device::plugin::{
+    EventBatchSink, EventBatchSink_TO, PluginConfiguration, PluginConfigurationValue,
+    PluginFacilityHandle, PluginFacilityType, PluginRawEventStreamDecoderFacility,
+    PluginRawEventStreamDecoderFacility_TO, PluginRawEventStreamFacility,
+    PluginRawEventStreamFacility_TO, PluginStreamBuffer,
+};
+use openevt::hal::facilities::RawEventStreamDecoderFacility;
 use openevt::types::{EventCD, EventExtTrigger};
 
 struct CollectingSink {
@@ -73,15 +80,49 @@ mod tests {
         );
         let serial = devices[0].plugin_info.serial.to_string();
 
-        // Step 2: open the device with that serial. The host now accepts any
-        // serial the plugin is willing to handle, so the documented
-        // `open_device_with_configuration` path is the right one.
-        let mut device = registry
+        // Step 2: open the device with that serial, passing the real sensor
+        // geometry. Without it the decoder's coordinate bounds default to
+        // 640x480 and silently discard events from the 1280x720 sensor.
+        let config_value = |name: &str, value: u16| PluginConfigurationValue {
+            name: name.into(),
+            value: ROption::RSome(value.to_string().into()),
+        };
+        let device = registry
             .open_device_with_configuration(PluginConfiguration {
                 serial: serial.into(),
-                values: RVec::new(),
+                values: rvec![
+                    config_value("sensor_width", 1280),
+                    config_value("sensor_height", 720),
+                ],
             })
             .expect("open device via documented path");
+
+        // Step 3: pull the three relevant facility handles. The host
+        // subscribes a sink via EventSubscription, then drives the stream
+        // + decoder to convert raw EVT3.0 buffers into typed events.
+        let event_subscription = device
+            .get_facility_handle(PluginFacilityType::EventSubscription)
+            .into_option()
+            .expect("no EventSubscription handle");
+        let stream_handle = device
+            .get_facility_handle(PluginFacilityType::RawEventStream)
+            .into_option()
+            .expect("no RawEventStream handle");
+        let decoder_handle = device
+            .get_facility_handle(PluginFacilityType::RawEventStreamDecoder)
+            .into_option()
+            .expect("no RawEventStreamDecoder handle");
+
+        let PluginFacilityHandle::EventSubscription(mut event_subscription) = event_subscription
+        else {
+            panic!("EventSubscription facility returned wrong variant");
+        };
+        let PluginFacilityHandle::RawEventStream(mut stream) = stream_handle else {
+            panic!("RawEventStream facility returned wrong variant");
+        };
+        let PluginFacilityHandle::RawEventStreamDecoder(mut decoder) = decoder_handle else {
+            panic!("RawEventStreamDecoder facility returned wrong variant");
+        };
 
         let events = Arc::new(AtomicUsize::new(0));
         let batches = Arc::new(AtomicUsize::new(0));
@@ -94,22 +135,45 @@ mod tests {
             },
             TD_Opaque,
         );
-        assert!(matches!(device.start_events(sink), RResult::ROk(())));
+        match event_subscription.subscribe_to_cd_events(sink) {
+            RResult::ROk(()) => {}
+            RResult::RErr(error) => panic!("subscribe_to_cd_events failed: {error}"),
+        }
+
+        assert!(matches!(stream.start(), RResult::ROk(())));
+
+        let buffers = Arc::new(AtomicUsize::new(0));
+        let bytes = Arc::new(AtomicUsize::new(0));
 
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
-            let _ = device.load_batch();
+            let PluginStreamBuffer { data, valid_len } = match stream.wait_next_buffer() {
+                RResult::ROk(buffer) => buffer,
+                RResult::RErr(error) => panic!("raw stream failed: {error}"),
+            };
+            buffers.fetch_add(1, Ordering::Relaxed);
+            bytes.fetch_add(valid_len as usize, Ordering::Relaxed);
+            if valid_len == 0 {
+                continue;
+            }
+            let payload = &data[..valid_len as usize];
+            match decoder.decode(RSlice::from_slice(payload)) {
+                RResult::ROk(()) => {}
+                RResult::RErr(error) => panic!("decoder failed: {error}"),
+            }
             if events.load(Ordering::Relaxed) > 0 {
                 break;
             }
-            std::thread::sleep(Duration::from_millis(20));
         }
 
+        let total_buffers = buffers.load(Ordering::Relaxed);
+        let total_bytes = bytes.load(Ordering::Relaxed);
         let total_events = events.load(Ordering::Relaxed);
         let total_batches = batches.load(Ordering::Relaxed);
         let last_size = last_batch_size.load(Ordering::Relaxed);
+        let last_timestamp = decoder.get_last_timestamp();
         println!(
-            "Collected {total_events} events across {total_batches} batches (last batch: {last_size} events)"
+            "Collected {total_buffers} raw buffers / {total_bytes} bytes / {total_events} events across {total_batches} batches (last batch: {last_size} events, decoder last timestamp = {last_timestamp})"
         );
 
         assert!(

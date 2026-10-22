@@ -7,8 +7,8 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::hal::{
-    errors::SharedError,
+use crate::{
+    hal::errors::SharedError,
     types::{EventCD, EventExtTrigger},
 };
 

@@ -14,13 +14,15 @@ use std::{
 };
 
 use crossbeam::channel::Receiver;
-use openevt_core::hal::{
-    errors::StreamError,
-    facilities::{FacilityError, RawEventStreamDecoderFacility, RawEventStreamFacility},
+use openevt_core::{
+    hal::{
+        errors::StreamError,
+        facilities::{FacilityError, RawEventStreamDecoderFacility, RawEventStreamFacility},
+    },
     types::{EventCD, EventCount, EventTimestamp},
 };
 
-use crate::{raw::stream::RawEventStream, types::DeviceFileError};
+use crate::{device_types::DeviceFileError, raw::stream::RawEventStream};
 
 /// Type-state marker for an iterator that loads raw data synchronously.
 pub struct IterSync;

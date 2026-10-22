@@ -6,7 +6,8 @@
 
 use crate::raw::decoder::RawEventStreamDecoder;
 use crate::raw::stream::RawEventStream;
-use crate::types::{DeviceFileError, EventTimestamp, FileIndex, IndexMarker};
+use crate::types::EventTimestamp;
+use crate::device_types::{DeviceFileError, FileIndex, IndexMarker};
 use openevt_core::hal::decoders::evt3::Evt3Decoder;
 use openevt_core::hal::facilities::RawEventStreamDecoderFacility;
 use std::io::{Read, Seek, SeekFrom};
