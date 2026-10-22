@@ -20,8 +20,8 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use abi_stable::std_types::{RResult, RVec};
-use openevt::hal::device::discovery::PluginRegistry;
-use openevt::hal::device::plugin::{
+use openevt_abi::discovery::PluginRegistry;
+use openevt_abi::plugin::{
     PluginConfiguration, PluginFacilityHandle, PluginFacilityType, PluginStreamBuffer,
 };
 

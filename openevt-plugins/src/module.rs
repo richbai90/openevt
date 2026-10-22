@@ -12,7 +12,7 @@ use abi_stable::{
     prefix_type::PrefixTypeTrait,
     std_types::{RString, RVec},
 };
-use openevt::hal::device::plugin::{
+use openevt_abi::plugin::{
     DeviceDiscoveryPluginBox, DevicePluginModuleRef, DevicePluginModuleVtable, NamedDiscoveryPlugin,
 };
 

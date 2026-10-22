@@ -24,12 +24,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use abi_stable::std_types::{RResult, RVec};
-use openevt::hal::device::discovery::PluginRegistry;
-use openevt::hal::device::plugin::{
+use openevt_abi::discovery::PluginRegistry;
+use openevt_abi::plugin::{
     EventBatchSink, PluginConfiguration, EventBatchSink_TO, PluginFacilityHandle,
     PluginFacilityType,
 };
-use openevt::types::EventCD;
+use openevt_core::types::EventCD;
 
 struct Args {
     serial: Option<String>,
@@ -105,7 +105,7 @@ impl EventBatchSink for ProbeSink {
 
     fn on_ext_events(
         &self,
-        _events: abi_stable::std_types::RSlice<'_, openevt::types::EventExtTrigger>,
+        _events: abi_stable::std_types::RSlice<'_, openevt_core::types::EventExtTrigger>,
     ) {
     }
 }

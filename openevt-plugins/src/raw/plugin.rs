@@ -23,17 +23,17 @@ use abi_stable::{
 use crossbeam::channel::Receiver;
 use std::sync::{Arc, Mutex};
 
-use openevt::hal::device::configuration::PluginConfigurationSchema;
-use openevt::hal::device::discovery::ConnectionType;
-use openevt::hal::device::plugin::{
+use openevt_abi::configuration::PluginConfigurationSchema;
+use openevt_core::hal::device::discovery::ConnectionType;
+use openevt_abi::plugin::{
     DeviceDiscoveryPlugin, DeviceDiscoveryPlugin_TO, DeviceDiscoveryPluginBox, DevicePlugin_TO,
     DevicePluginBox, PluginCameraDescriptionAbi, PluginConfiguration,
 };
-use openevt::hal::device::plugin::{
+use openevt_abi::plugin::{
     DevicePlugin, EventBatchSinkBox, PluginFacility, PluginFacilityHandle, PluginFacilityType,
     PluginGeometry, PluginGeometryFacility, PluginGeometryFacility_TO,
 };
-use openevt::types::{EventCD, EventExtTrigger, EventTimestamp};
+use openevt_core::types::{EventCD, EventExtTrigger, EventTimestamp};
 use openevt::RawFileReader;
 
 // Keep the example's stack footprint aligned with the normal reader tests;
@@ -112,7 +112,7 @@ struct RawGeometryFacility {
 struct RawIndexFacility<const N: usize> {
     reader: Arc<Mutex<RawFileReader<N>>>,
 }
-impl<const N: usize> openevt::hal::device::plugin::PluginIndexFacility for RawIndexFacility<N> {
+impl<const N: usize> openevt_abi::plugin::PluginIndexFacility for RawIndexFacility<N> {
     fn t_min(&self) -> ROption<EventTimestamp> {
         self.reader.lock().unwrap().t_min().into()
     }
@@ -124,7 +124,7 @@ impl<const N: usize> openevt::hal::device::plugin::PluginIndexFacility for RawIn
 struct RawSeekFacility<const N: usize> {
     reader: Arc<Mutex<RawFileReader<N>>>,
 }
-impl<const N: usize> openevt::hal::device::plugin::PluginSeekFacility for RawSeekFacility<N> {
+impl<const N: usize> openevt_abi::plugin::PluginSeekFacility for RawSeekFacility<N> {
     fn seek(&mut self, timestamp: EventTimestamp) -> RResult<(), RString> {
         match self.reader.lock().unwrap().seek(timestamp) {
             Ok(()) => RResult::ROk(()),
@@ -136,7 +136,7 @@ impl<const N: usize> openevt::hal::device::plugin::PluginSeekFacility for RawSee
 struct RawExternalTriggerSeekFacility<const N: usize> {
     reader: Arc<Mutex<RawFileReader<N>>>,
 }
-impl<const N: usize> openevt::hal::device::plugin::PluginExternalTriggerSeekFacility
+impl<const N: usize> openevt_abi::plugin::PluginExternalTriggerSeekFacility
     for RawExternalTriggerSeekFacility<N>
 {
     fn seek_to_next_ext(&mut self) -> RResult<(), RString> {
@@ -232,7 +232,7 @@ impl DevicePlugin for RawFilePlugin {
                 .into()
             }
             PluginFacilityType::Index => Some(PluginFacilityHandle::Index(
-                openevt::hal::device::plugin::PluginIndexFacility_TO::from_value(
+                openevt_abi::plugin::PluginIndexFacility_TO::from_value(
                     RawIndexFacility {
                         reader: Arc::clone(&self.reader),
                     },
@@ -241,7 +241,7 @@ impl DevicePlugin for RawFilePlugin {
             ))
             .into(),
             PluginFacilityType::Seek => Some(PluginFacilityHandle::Seek(
-                openevt::hal::device::plugin::PluginSeekFacility_TO::from_value(
+                openevt_abi::plugin::PluginSeekFacility_TO::from_value(
                     RawSeekFacility {
                         reader: Arc::clone(&self.reader),
                     },
@@ -251,7 +251,7 @@ impl DevicePlugin for RawFilePlugin {
             .into(),
             PluginFacilityType::ExternalTriggerSeek => {
                 Some(PluginFacilityHandle::ExternalTriggerSeek(
-                    openevt::hal::device::plugin::PluginExternalTriggerSeekFacility_TO::from_value(
+                    openevt_abi::plugin::PluginExternalTriggerSeekFacility_TO::from_value(
                         RawExternalTriggerSeekFacility {
                             reader: Arc::clone(&self.reader),
                         },
@@ -369,7 +369,7 @@ pub extern "C" fn create_raw_discovery() -> DeviceDiscoveryPluginBox {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openevt::hal::device::plugin::{EventBatchSink, EventBatchSink_TO};
+    use openevt_abi::plugin::{EventBatchSink, EventBatchSink_TO};
     use abi_stable::std_types::RSlice;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -389,8 +389,11 @@ mod tests {
 
     #[test]
     fn raw_plugin_preserves_decoded_cd_batch_callbacks() {
-        // Shares the core crate's EVT3 fixture rather than duplicating it.
-        let path = format!("{}/../tests/sample.raw", env!("CARGO_MANIFEST_DIR"));
+        // Shares the openevt-devices crate's EVT3 fixture rather than duplicating it.
+        let path = format!(
+            "{}/../crates/openevt-devices/tests/sample.raw",
+            env!("CARGO_MANIFEST_DIR")
+        );
         let mut plugin = RawFilePlugin::open(&path).expect("sample EVT3 file should open");
         CD_BATCHES.store(0, Ordering::Relaxed);
         CD_EVENTS.store(0, Ordering::Relaxed);

@@ -1,8 +1,8 @@
 use crate::device::{DEFAULT_HEIGHT, DEFAULT_WIDTH, LucidEvsDevice};
 use abi_stable::std_types::{RResult, RString, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
-use openevt::hal::device::discovery::ConnectionType;
-use openevt::hal::device::plugin::{
+use openevt_core::hal::device::discovery::ConnectionType;
+use openevt_abi::plugin::{
     DeviceDiscoveryPlugin, DevicePlugin_TO, DevicePluginBox, PluginCameraDescriptionAbi,
     PluginConfiguration,
 };

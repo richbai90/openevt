@@ -5,7 +5,7 @@ use abi_stable::prefix_type::PrefixTypeTrait;
 use abi_stable::std_types::{RString, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
 use discovery::LucidEvsDiscovery;
-use openevt::hal::device::plugin::{
+use openevt_abi::plugin::{
     DeviceDiscoveryPlugin_TO, DeviceDiscoveryPluginBox, DevicePluginModuleRef,
     DevicePluginModuleVtable, NamedDiscoveryPlugin,
 };
@@ -42,8 +42,8 @@ pub fn instantiate_root_module() -> DevicePluginModuleRef {
 mod tests {
     use super::*;
     use crate::discovery::CONFIGURATION_SCHEMA;
-    use openevt::hal::device::configuration::PluginConfigurationSchema;
-    use openevt::hal::device::plugin::DeviceDiscoveryPlugin;
+    use openevt_abi::configuration::PluginConfigurationSchema;
+    use openevt_abi::plugin::DeviceDiscoveryPlugin;
 
     #[test]
     fn plugin_name_is_stable() {

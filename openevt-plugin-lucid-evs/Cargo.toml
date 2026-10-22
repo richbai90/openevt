@@ -13,6 +13,8 @@ openevt = { version = "1.0.5", default-features = false, features = [
     "devices",
     "plugins",
 ], path = "../" }
+openevt-core = { version = "1.0.5", path = "../crates/openevt-core", features = ["full"] }
+openevt-abi = { version = "1.0.5", path = "../crates/openevt-abi" }
 tokio = { version = "1", features = ["rt", "time"] }
 tracing = "0.1"
 viva-genicam = "0.10.0"

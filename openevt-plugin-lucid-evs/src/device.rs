@@ -2,17 +2,17 @@ use abi_stable::std_types::{ROption, RResult, RSlice, RString, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
 use bytes::Bytes;
 use crossbeam::channel::{Receiver, RecvTimeoutError, Sender, bounded};
-use openevt::hal::decoders::evt3::Evt3Decoder;
-use openevt::hal::device::discovery::ConnectionType;
-use openevt::hal::device::plugin::{
+use openevt_core::hal::decoders::evt3::Evt3Decoder;
+use openevt_core::hal::device::discovery::ConnectionType;
+use openevt_abi::plugin::{
     self as plugin, DevicePlugin, EventBatchSinkBox, PluginEventSubscriptionFacility,
     PluginEventSubscriptionFacility_TO, PluginFacilityHandle, PluginFacilityType, PluginGeometry,
     PluginGeometryFacility, PluginGeometryFacility_TO, PluginIndexFacility, PluginIndexFacility_TO,
     PluginRawEventStreamDecoderFacility, PluginRawEventStreamDecoderFacility_TO,
     PluginRawEventStreamFacility, PluginRawEventStreamFacility_TO, PluginStreamBuffer,
 };
-use openevt::hal::facilities::RawEventStreamDecoderFacility;
-use openevt::types::{EventCD, EventTimestamp, FfiKey};
+use openevt_core::hal::facilities::RawEventStreamDecoderFacility;
+use openevt_core::types::{EventCD, EventTimestamp, FfiKey};
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -700,7 +700,7 @@ impl PluginRawEventStreamDecoderFacility for RawEvsDecoderFacility {
     fn remove_marker(&mut self, key: FfiKey) -> ROption<EventTimestamp> {
         match self.decoder.lock() {
             Ok(mut decoder) => {
-                let key: openevt::types::SlotmapKey = key.into();
+                let key: openevt_core::types::SlotmapKey = key.into();
                 decoder.remove_marker(key).into()
             }
             Err(_) => ROption::RNone,

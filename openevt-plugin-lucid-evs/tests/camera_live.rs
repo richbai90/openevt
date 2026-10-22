@@ -6,15 +6,15 @@ use std::time::Duration;
 use abi_stable::rvec;
 use abi_stable::std_types::{ROption, RResult, RSlice, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
-use openevt::hal::device::discovery::PluginRegistry;
-use openevt::hal::device::plugin::{
+use openevt_abi::discovery::PluginRegistry;
+use openevt_abi::plugin::{
     EventBatchSink, EventBatchSink_TO, PluginConfiguration, PluginConfigurationValue,
     PluginFacilityHandle, PluginFacilityType, PluginRawEventStreamDecoderFacility,
     PluginRawEventStreamDecoderFacility_TO, PluginRawEventStreamFacility,
     PluginRawEventStreamFacility_TO, PluginStreamBuffer,
 };
-use openevt::hal::facilities::RawEventStreamDecoderFacility;
-use openevt::types::{EventCD, EventExtTrigger};
+use openevt_core::hal::facilities::RawEventStreamDecoderFacility;
+use openevt_core::types::{EventCD, EventExtTrigger};
 
 struct CollectingSink {
     events: Arc<AtomicUsize>,

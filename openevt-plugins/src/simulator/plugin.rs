@@ -2,7 +2,6 @@
 
 use crate::simulator::error::SimError;
 use crate::simulator::solver::{EvsParameters, EvsSimulator};
-use abi_stable::prefix_type::PrefixTypeTrait;
 use abi_stable::std_types::{ROption, RResult, RString, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
 use ffmpeg_next::codec;
@@ -11,9 +10,9 @@ use ffmpeg_next::software::scaling::{context::Context, flag::Flags};
 use ffmpeg_next::util::error::{EAGAIN, Error as FfmpegError};
 use ffmpeg_next::util::frame::video::Video;
 use hotpath::wrap::std::sync::mpsc::{Receiver, SyncSender};
-use openevt::hal::device::configuration::PluginConfigurationSchema;
-use openevt::hal::device::discovery::ConnectionType;
-use openevt::hal::device::plugin::{
+use openevt_abi::configuration::PluginConfigurationSchema;
+use openevt_core::hal::device::discovery::ConnectionType;
+use openevt_abi::plugin::{
     self, DeviceDiscoveryPlugin, DeviceDiscoveryPlugin_TO, DeviceDiscoveryPluginBox,
     DevicePlugin_TO, DevicePluginBox,
     EventBatchSinkBox, PluginCameraDescriptionAbi, PluginConfiguration,
@@ -23,7 +22,7 @@ use openevt::hal::device::plugin::{
     PluginRawEventStreamFacility, PluginRawEventStreamFacility_TO, PluginSeekFacility,
     PluginSeekFacility_TO, PluginStreamBuffer,
 };
-use openevt::types::{EventCD, EventTimestamp};
+use openevt_core::types::{EventCD, EventTimestamp};
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{RecvTimeoutError, sync_channel};
@@ -977,8 +976,8 @@ pub extern "C" fn create_simulator_discovery() -> DeviceDiscoveryPluginBox {
 mod tests {
     use super::*;
     use abi_stable::std_types::{RResult, RSlice};
-    use openevt::hal::device::plugin::{DevicePlugin, EventBatchSink, EventBatchSink_TO};
-    use openevt::types::{EventCD, EventExtTrigger};
+    use openevt_abi::plugin::{DevicePlugin, EventBatchSink, EventBatchSink_TO};
+    use openevt_core::types::{EventCD, EventExtTrigger};
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
 

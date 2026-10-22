@@ -1,4 +1,4 @@
-use openevt::hal::device::discovery::PluginRegistry;
+use openevt_abi::discovery::PluginRegistry;
 use std::env;
 use std::path::PathBuf;
 
