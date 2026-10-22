@@ -60,12 +60,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.102"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
-
-[[package]]
 name = "arc-swap"
 version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -801,21 +795,48 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 name = "openevt"
 version = "1.0.5"
 dependencies = [
- "abi_stable",
- "anyhow",
- "crossbeam",
  "derive-new",
- "log",
- "num-traits",
- "numpy",
+ "openevt-abi",
+ "openevt-core",
+ "openevt-devices",
+ "openevt-py",
  "paste",
- "pyo3",
- "regex",
+]
+
+[[package]]
+name = "openevt-abi"
+version = "1.0.5"
+dependencies = [
+ "abi_stable",
+ "openevt-core",
  "serde",
  "serde_json",
  "slotmap",
  "thiserror 2.0.19",
  "toml",
+]
+
+[[package]]
+name = "openevt-core"
+version = "1.0.5"
+dependencies = [
+ "abi_stable",
+ "crossbeam",
+ "derive-new",
+ "log",
+ "paste",
+ "slotmap",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "openevt-devices"
+version = "1.0.5"
+dependencies = [
+ "crossbeam",
+ "openevt-core",
+ "slotmap",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -826,6 +847,8 @@ dependencies = [
  "bytes",
  "crossbeam",
  "openevt",
+ "openevt-abi",
+ "openevt-core",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -841,11 +864,26 @@ dependencies = [
  "ffmpeg-next",
  "hotpath",
  "openevt",
+ "openevt-abi",
+ "openevt-core",
  "pyo3",
  "rayon",
  "serde",
  "thiserror 2.0.19",
  "toml",
+]
+
+[[package]]
+name = "openevt-py"
+version = "1.0.5"
+dependencies = [
+ "abi_stable",
+ "crossbeam",
+ "numpy",
+ "openevt-abi",
+ "openevt-core",
+ "openevt-devices",
+ "pyo3",
 ]
 
 [[package]]

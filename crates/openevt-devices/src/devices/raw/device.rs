@@ -5,6 +5,7 @@ use crate::raw::stream::RawEventStream;
 use crate::device_types::{DeviceFileError, FileFormat};
 use openevt_core::hal::device::device::Device;
 use openevt_core::hal::facilities::{FacilityHandle, FacilityType};
+use openevt_core::pack_facility;
 use std::collections::HashMap;
 use std::io::{Seek, SeekFrom};
 use std::sync::Arc;

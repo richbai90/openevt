@@ -6,7 +6,7 @@
 
 use crate::raw::decoder::RawEventStreamDecoder;
 use crate::raw::stream::RawEventStream;
-use crate::types::EventTimestamp;
+use openevt_core::types::EventTimestamp;
 use crate::device_types::{DeviceFileError, FileIndex, IndexMarker};
 use openevt_core::hal::decoders::evt3::Evt3Decoder;
 use openevt_core::hal::facilities::RawEventStreamDecoderFacility;

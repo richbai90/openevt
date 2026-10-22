@@ -9,17 +9,16 @@
 //! - seeking by timestamp when an index is available
 //! - exposing the parsed file time range
 
-use crate::EventWindowIterator;
 use crate::raw::decoder::RawEventStreamDecoder;
 use crate::raw::device::RawFileHandler;
 use crate::raw::stream::RawEventStream;
-use crate::raw::{IterUnconfigured, index};
-use crate::types::EventTimestamp;
+use crate::raw::{IterUnconfigured, index, EventWindowIterator};
+use openevt_core::types::EventTimestamp;
 use crate::device_types::{DeviceFileError, FileIndex};
 use crossbeam::channel::Receiver;
 use openevt_core::hal::device::device::Device;
 use openevt_core::hal::facilities::{
-    EventSubscriptionFacilityHandle, FacilityError, FacilityType, ROIFacilityHandle,
+    EventSubscriptionFacilityHandle, FacilityType, ROIFacilityHandle,
     RawEventStreamDecoderFacilityHandle, RawEventStreamFacility, RawEventStreamFacilityHandle,
 };
 use openevt_core::types::{EventCD, EventExtTrigger};

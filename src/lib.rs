@@ -3,84 +3,51 @@
 //! `openevt` is independently maintained and is not endorsed or sponsored by
 //! Prophesee.
 //!
-//! The core HAL is always available. File-backed raw devices are enabled by
-//! the `devices` feature; the `all` feature enables every optional component.
+//! This crate is a facade over the workspace crates:
+//!
+//! - `openevt-core` — HAL abstractions, types, algorithms, decoders (always on)
+//! - `openevt-devices` — file-backed raw devices (the `devices` feature)
+//! - `openevt-abi` — the stable plugin ABI and host adapters (the `plugins`
+//!   and `framegen` features)
+//! - `openevt-py` — Python bindings (the `python` feature)
+//!
+//! The `all` feature enables every optional component.
 
 pub use derive_new::new;
 pub use paste;
 
-// Compatibility aliases keep the folded modules' internal paths stable while
-// allowing downstream code to use this crate as one package.
-extern crate self as macros;
-extern crate self as openevt_core;
-extern crate self as utilities;
+// Compatibility aliases from the pre-split monolith are gone; the modules
+// now live in their dedicated workspace crates and are re-exported below.
 
-/// Declares getter/setter methods for facility properties.
-#[macro_export]
-macro_rules! property {
-    (ro $name:ident : $ty:ty ; $($rest:tt)*) => {
-        paste::paste! {
-            #[doc = "Returns the current facility property."]
-            fn [<get_ $name>](&self) -> FacilityResult<$ty>;
-        }
-        property!($($rest)*);
-    };
-    ($name:ident : $ty:ty ; $($rest:tt)*) => {
-        paste::paste! {
-            #[doc = "Returns the current facility property."]
-            fn [<get_ $name>](&self) -> FacilityResult<$ty>;
-            #[doc = "Updates the facility property."]
-            fn [<set_ $name>](&mut self, value: $ty) -> FacilityResult<()>;
-        }
-        property!($($rest)*);
-    };
-    () => {};
-}
+// Macros moved to openevt-core; re-exported here so `openevt::property!` and
+// `openevt::pack_facility!` keep working for downstream users.
+pub use openevt_core::pack_facility;
+pub use openevt_core::property;
 
-/// Wraps a concrete facility in the matching `FacilityHandle` variant.
-#[macro_export]
-macro_rules! pack_facility {
-    (mut $variant:ident, $instance:expr) => {
-        FacilityHandle::$variant(std::sync::Arc::new(std::sync::RwLock::new($instance)))
-    };
-    (ro $variant:ident, $instance:expr) => {
-        FacilityHandle::$variant(std::sync::Arc::new($instance))
-    };
-}
+pub use openevt_core::{algorithms, buffer, hal, types};
 
-/// Recyclable buffers used by event decoders and dispatchers.
-pub mod buffer;
-/// ABI-stable event-to-frame generation interfaces.
 #[cfg(feature = "framegen")]
-pub mod framegen;
-/// Shared HAL abstractions.
-pub mod hal;
-/// Global event, scalar, callback, and geometry types shared across features.
-pub mod types;
+pub use openevt_abi::framegen;
 
 #[cfg(feature = "devices")]
-#[path = "devices/device_macros.rs"]
-/// Macros used to implement common device plumbing.
-pub mod device_macros;
+pub use openevt_devices as devices;
 #[cfg(feature = "devices")]
-#[path = "devices/header.rs"]
-/// Raw event-file header parsing and metadata conversion.
-pub mod header;
+pub use openevt_devices::device_macros;
 #[cfg(feature = "devices")]
-#[path = "devices/raw/mod.rs"]
-mod raw;
+pub use openevt_devices::device_types;
 #[cfg(feature = "devices")]
-#[path = "devices/types.rs"]
-pub mod device_types;
+pub use openevt_devices::header;
+#[cfg(feature = "devices")]
+pub use openevt_devices::raw as raw;
+#[cfg(feature = "devices")]
+pub use raw::{BufferReplenisher, EventWindowIterator, IterAsync, IterSync, RawEventStreamDecoder, RawFileReader};
 
-pub mod algorithms;
+#[cfg(feature = "plugins")]
+pub use openevt_abi::plugin::DevicePluginBox;
+#[cfg(feature = "plugins")]
+pub use openevt_abi::discovery::PluginRegistry;
+#[cfg(feature = "plugins")]
+pub use openevt_abi::device::PluginDevice;
 
 #[cfg(feature = "python")]
-/// Python bindings for the device and event APIs.
-pub mod python;
-
-#[cfg(feature = "devices")]
-pub use raw::{
-    BufferReplenisher, EventWindowIterator, IterAsync, IterSync, RawEventStreamDecoder,
-    RawFileReader,
-};
+pub use openevt_py as python;

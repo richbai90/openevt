@@ -1,8 +1,6 @@
-use crate::hal::device::discovery::PluginRegistry;
-use crate::hal::device::plugin::{DevicePluginBox, EventBatchSink, EventBatchSink_TO};
-use crate::types::{EventCount, EventTimestamp};
-use crate::device_types::DeviceFileError;
-use crate::types::EventCD;
+use openevt_abi::discovery::PluginRegistry;
+use openevt_abi::plugin::{DevicePluginBox, EventBatchSink, EventBatchSink_TO};
+use openevt_core::types::{EventCount, EventTimestamp, EventCD};
 use abi_stable::{std_types::RSlice, type_level::downcasting::TD_Opaque};
 use crossbeam::channel::{Receiver, Sender};
 use numpy::{Element, PyArray1, PyArrayDescr, PyReadonlyArray1};
@@ -30,7 +28,7 @@ impl EventBatchSink for PyEventSink {
         let _ = self.sender.send(events.iter().copied().collect());
     }
 
-    fn on_ext_events(&self, _events: RSlice<'_, crate::types::EventExtTrigger>) {}
+    fn on_ext_events(&self, _events: RSlice<'_, openevt_core::types::EventExtTrigger>) {}
 }
 
 struct PluginReader {
@@ -103,34 +101,6 @@ impl PluginReader {
             .seek_to_next_ext()
             .into_result()
             .map_err(|error| PyIOError::new_err(error.to_string()))
-    }
-}
-
-impl From<DeviceFileError> for PyErr {
-    fn from(value: DeviceFileError) -> Self {
-        match value {
-            DeviceFileError::Io(error) => PyIOError::new_err(error),
-            DeviceFileError::TryRecv(error) => PyIOError::new_err(error.to_string()),
-            DeviceFileError::Format(error) => PyIOError::new_err(error),
-            DeviceFileError::UnknownGeometry() => {
-                PyValueError::new_err("Unknown or unsupported geometry")
-            }
-            DeviceFileError::GeometryParsing(error) => PyValueError::new_err(error.to_string()),
-            DeviceFileError::EOF() => PyIOError::new_err("EOF"),
-            DeviceFileError::UnsupportedFacility(error) => PyValueError::new_err(error),
-            DeviceFileError::LockError => {
-                PyRuntimeError::new_err("Failed to Lock Mutex. Possibly Poisoned")
-            }
-            DeviceFileError::FacilityTypeMismatch(error) => {
-                PyValueError::new_err(error.to_string())
-            }
-            DeviceFileError::UnregisteredFacility(error) => PyValueError::new_err(error),
-            DeviceFileError::FacilityError(error) => PyRuntimeError::new_err(error.to_string()),
-            DeviceFileError::UnsupportedBehavior(error) => PyRuntimeError::new_err(error),
-            DeviceFileError::NotInitialized => PyRuntimeError::new_err(
-                "Device is not initialized. Cannot call methods on unitialize device.",
-            ),
-        }
     }
 }
 

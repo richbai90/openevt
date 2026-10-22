@@ -1,0 +1,32 @@
+[package]
+name = "openevt-core"
+version = "1.0.5"
+edition = "2024"
+authors = ["Rich Baird <rich@rbaird.me>"]
+description = "Fundamental types, HAL traits, and event decoders for the openevt stack"
+license = "MIT"
+repository = "https://github.com/richbai90/openevt"
+
+[features]
+default = []
+# Domain decoder features. These must stay agnostic of PyO3/Python.
+evt3 = []
+decoder = []
+full = ["evt3", "decoder"]
+# Stable-ABI derivation support for types that cross the plugin boundary.
+plugins = ["dep:abi_stable"]
+framegen = ["dep:abi_stable"]
+
+[dependencies]
+abi_stable = { version = "0.11.3", optional = true }
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
+derive-new = "0.7.0"
+log = "0.4.29"
+paste = "1.0.15"
+slotmap = "1.1.1"
+thiserror = "2.0.18"
+
+[lib]
+name = "openevt_core"
+path = "src/lib.rs"
+crate-type = ["rlib"]

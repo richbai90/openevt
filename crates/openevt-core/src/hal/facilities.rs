@@ -24,7 +24,8 @@ use crate::hal::errors::{
 };
 use crate::types::{CallbackId, Cb, CbRo, EventTimestamp, PixelMask, Region, StreamLength};
 use crate::types::{EventCD, EventExtTrigger};
-pub use macros::pack_facility;
+pub use crate::pack_facility;
+pub use crate::property;
 use slotmap::DefaultKey;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;

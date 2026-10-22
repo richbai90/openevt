@@ -1,4 +1,4 @@
-use crate::{
+use openevt_core::{
     algorithms::{
         EvtProcessor, EvtTransformer, filters,
         histogram::{Histogram, HistogramTransformer},
@@ -11,8 +11,8 @@ use crate::{
         },
     },
     types::{EventCoordinate, EventTimestamp},
-    python::pydevice::{PyEventCD, events_from_numpy, events_to_numpy},
 };
+use crate::python::pydevice::{PyEventCD, events_from_numpy, events_to_numpy};
 use numpy::{PyArray3, PyReadonlyArray1};
 use pyo3::{prelude::*, types::PyModule};
 

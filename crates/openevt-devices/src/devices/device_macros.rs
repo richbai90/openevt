@@ -6,7 +6,7 @@ macro_rules! facility_downcast {
             .as_any()
             .downcast_ref::<$target_type>()
             .ok_or_else(|| {
-                FacilityError::FacilityDowncastError(
+                openevt_core::hal::facilities::FacilityError::FacilityDowncastError(
                     stringify!($facility).to_string(),
                     stringify!($target_type).to_string(),
                 )
@@ -22,7 +22,7 @@ macro_rules! facility_downcast_mut {
             .as_any_mut()
             .downcast_mut::<$target_type>()
             .ok_or_else(|| {
-                FacilityError::FacilityDowncastError(
+                openevt_core::hal::facilities::FacilityError::FacilityDowncastError(
                     stringify!($facility).to_string(),
                     stringify!($target_type).to_string(),
                 )

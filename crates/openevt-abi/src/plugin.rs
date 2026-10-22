@@ -13,9 +13,9 @@ use abi_stable::{
     std_types::{RBox, ROption, RResult, RSlice, RStr, RString, RVec},
 };
 
-use super::discovery::ConnectionType;
-use crate::types::{EventCD, EventExtTrigger, EventTimestamp, StreamLength};
-use crate::{hal::facilities::FacilityType, types::FfiKey};
+use openevt_core::hal::device::discovery::ConnectionType;
+use openevt_core::types::{EventCD, EventExtTrigger, EventTimestamp, StreamLength};
+use openevt_core::{hal::facilities::FacilityType, types::FfiKey};
 
 /// One named plugin creation value.
 ///
@@ -41,7 +41,7 @@ pub struct PluginConfiguration {
     pub values: RVec<PluginConfigurationValue>,
 }
 
-/// ABI representation of [`super::discovery::PluginCameraDescription`]. Keeping this separate
+/// ABI representation of [`openevt_core::hal::device::discovery::PluginCameraDescription`]. Keeping this separate
 /// means the native HAL remains usable without enabling the plugin feature.
 #[derive(Debug, Clone, PartialEq, Eq, StableAbi)]
 #[repr(C)]
@@ -112,7 +112,7 @@ pub struct PluginStreamBuffer {
     pub valid_len: StreamLength,
 }
 
-impl From<PluginCameraDescriptionAbi> for super::discovery::PluginCameraDescription {
+impl From<PluginCameraDescriptionAbi> for openevt_core::hal::device::discovery::PluginCameraDescription {
     fn from(value: PluginCameraDescriptionAbi) -> Self {
         Self {
             serial: value.serial.into(),

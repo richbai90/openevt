@@ -1,77 +1,13 @@
-#[cfg_attr(feature = "plugins", derive(abi_stable::StableAbi))]
-#[cfg_attr(feature = "plugins", repr(C))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Transport used to connect a camera plugin to the host layer.
-pub enum ConnectionType {
-    /// MIPI camera connection.
-    Mipi,
-    /// USB camera connection.
-    Usb,
-    /// Network camera connection.
-    Network,
-    /// Vendor-specific connection.
-    Proprietary,
-    /// Software only device
-    Software,
-}
+//! Plugin discovery and library loading for the openevt ABI.
+//!
+//! Host-side registry that loads ABI-compatible plugin libraries and exposes
+//! their devices through the native [`Device`](openevt_core::hal::device::device::Device)
+//! interface. Native discovery descriptions live in
+//! [`openevt_core::hal::device::discovery`].
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Description of a camera plugin and its connection.
-pub struct PluginCameraDescription {
-    /// Camera serial number.
-    pub serial: String,
-    /// Connection transport.
-    pub connection: ConnectionType,
-}
-
-impl PluginCameraDescription {
-    /// Creates a plugin description from a serial number and transport.
-    pub fn new(serial: &str, connection: ConnectionType) -> Self {
-        Self {
-            serial: serial.to_owned(),
-            connection,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Full camera description, including its integrator and plugin identity.
-pub struct CameraDescription {
-    /// Name of the camera integrator.
-    pub integrator_name: String,
-    /// Name of the camera plugin.
-    pub plugin_name: String,
-    /// Plugin-specific camera details.
-    pub plugin_info: PluginCameraDescription,
-}
-
-impl CameraDescription {
-    /// Creates a complete camera description.
-    pub fn new(
-        integrator_name: String,
-        plugin_name: String,
-        plugin_info: PluginCameraDescription,
-    ) -> Self {
-        Self {
-            integrator_name,
-            plugin_name,
-            plugin_info,
-        }
-    }
-}
-
-impl From<PluginCameraDescription> for CameraDescription {
-    fn from(plugin_info: PluginCameraDescription) -> Self {
-        Self {
-            integrator_name: String::new(),
-            plugin_name: String::new(),
-            plugin_info,
-        }
-    }
-}
+use openevt_core::hal::device::discovery::CameraDescription;
 
 /// Directories searched for device plugin libraries.
-#[cfg(feature = "plugins")]
 pub fn default_plugin_paths() -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = env::var_os("OPENEVT_PLUGIN_PATH")
         .map(|value| env::split_paths(&value).collect())
@@ -83,7 +19,6 @@ pub fn default_plugin_paths() -> Vec<PathBuf> {
     paths
 }
 
-#[cfg(feature = "plugins")]
 fn is_library(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|e| e.to_str()),
@@ -104,7 +39,6 @@ fn is_library(path: &Path) -> bool {
 /// library is leaked on purpose: the returned module borrows from it for
 /// `'static`, and unloading it while a device is still alive would be a
 /// use-after-free.
-#[cfg(feature = "plugins")]
 fn load_root_module(
     path: &Path,
 ) -> Result<DevicePluginModuleRef, abi_stable::library::LibraryError> {
@@ -124,7 +58,6 @@ fn load_root_module(
 }
 
 /// Runtime registry of loaded discovery plugins.
-#[cfg(feature = "plugins")]
 pub struct PluginRegistry {
     /// One entry per device, not per library: a library exporting several
     /// devices contributes one entry each, paired with the name it is
@@ -133,14 +66,12 @@ pub struct PluginRegistry {
     modules: Vec<(String, DeviceDiscoveryPluginBox)>,
 }
 
-#[cfg(feature = "plugins")]
 impl Default for PluginRegistry {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(feature = "plugins")]
 impl PluginRegistry {
     /// Creates an empty plugin registry.
     pub fn new() -> Self {
@@ -306,6 +237,7 @@ impl PluginRegistry {
                 }
             }
         }
+
         Err(last_error.unwrap_or_else(|| {
             format!("no plugin device found for serial {}", configuration.serial)
         }))
@@ -321,7 +253,7 @@ impl PluginRegistry {
     }
 
     /// Opens a plugin device through the ordinary host-layer
-    /// [`super::device::Device`] API.
+    /// [`Device`](openevt_core::hal::device::device::Device) API.
     ///
     /// The conversion is explicit and ABI-safe: the adapter only exposes
     /// facility handles for which the host layer has a matching native adapter.
@@ -333,10 +265,11 @@ impl PluginRegistry {
     }
 }
 
-#[cfg(all(test, feature = "plugins"))]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hal::device::plugin::PluginCameraDescriptionAbi;
+    use crate::plugin::PluginCameraDescriptionAbi;
+    use openevt_core::hal::device::discovery::{ConnectionType, PluginCameraDescription};
 
     #[test]
     fn empty_registry_has_no_devices() {
@@ -355,12 +288,8 @@ mod tests {
     }
 }
 
-#[cfg(feature = "plugins")]
 use std::path::{Path, PathBuf};
-#[cfg(feature = "plugins")]
 use std::{env, fs};
 
-#[cfg(feature = "plugins")]
 use super::plugin::{DeviceDiscoveryPluginBox, DevicePluginModuleRef};
-#[cfg(feature = "plugins")]
 use abi_stable::library::{RawLibrary, lib_header_from_raw_library};

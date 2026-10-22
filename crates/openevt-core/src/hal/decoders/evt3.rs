@@ -14,7 +14,7 @@ use crate::hal::facilities::{
 };
 use crate::types::{EventCD, EventExtTrigger, EventTimestamp};
 use log::warn;
-use macros::new;
+use crate::new;
 use slotmap::{DefaultKey, SlotMap};
 
 /// Decoder for the EVT3 event data format.
