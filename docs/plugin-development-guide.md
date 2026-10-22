@@ -32,8 +32,9 @@ The application does not need to know how the camera is connected. A plugin
 can use a USB SDK, a network protocol, a file reader, or a simulator internally.
 
 The repository includes a complete raw-file adapter in
-[`src/devices/raw/plugin.rs`](../src/devices/raw/plugin.rs). It is the best
-reference when this guide and an implementation detail appear to differ.
+[`openevt-plugins/src/raw/plugin.rs`](../openevt-plugins/src/raw/plugin.rs). It
+is the best reference when this guide and an implementation detail appear to
+differ.
 
 ## A Little FFI Vocabulary
 

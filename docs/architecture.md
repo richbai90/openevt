@@ -1,5 +1,20 @@
 # Architecture and mental model
 
+## Workspace layout
+
+The project is a Cargo workspace split along dependency lines:
+
+| Crate | Contents |
+| --- | --- |
+| `openevt-core` | Shared event types, HAL traits and facilities, dispatcher, algorithms, buffers, decoders (EVT2/EVT3/DAT/raw). Depends on nothing else in the workspace. |
+| `openevt-devices` | File-backed raw event device: header parsing, raw file reader, stream, index, iterators. Depends on `openevt-core`. |
+| `openevt-abi` | The stable plugin ABI: `plugin.rs` type definitions, plugin registry/loading, configuration schema, the host-side `PluginDevice` adapter, and framegen ABI. Depends on `openevt-core`. |
+| `openevt-py` | PyO3 bindings behind the `python` feature. Edge of the dependency tree; depends on `openevt-core`, `openevt-devices`, and `openevt-abi`. |
+| `openevt` (root) | Facade crate re-exporting the workspace crates for single-crate consumers. |
+
+PyO3 bindings compile only in `openevt-py`; the domain crates never link
+PyO3. The `sample.raw` test fixture lives in `crates/openevt-devices/tests/`.
+
 ## Runtime flow
 
 ```text

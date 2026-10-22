@@ -20,9 +20,12 @@ that is especially useful when implementing a new adapter.
 
 ## Repository map
 
-The root `openevt` crate owns the public HAL and both ABI contracts. The
+The root `openevt` crate is a facade that re-exports the workspace crates: the
+public HAL and types live in `crates/openevt-core`, the raw-file device in
+`crates/openevt-devices`, and both ABI contracts in `crates/openevt-abi`. The
 `openevt-plugins` crate contains a video-backed simulator and optional Python
-bindings. The raw-file device adapter lives in `src/devices/raw/plugin.rs`.
+bindings. The raw-file device adapter lives in
+`openevt-plugins/src/raw/plugin.rs`.
 
 The contracts are deliberately small. Keep vendor SDKs, decoders, threads,
 channels, locks, and mutable buffers inside the plugin; only ABI-safe values

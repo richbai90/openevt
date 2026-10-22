@@ -23,13 +23,17 @@ exclude = [".ccls-cache", "openevt-plugins/tools/**"]
 
 [features]
 default = ["all"]
-all = ["devices", "framegen", "plugins"]
+all = ["devices", "framegen", "plugins", "evt3", "decoder"]
 # Alias kept for agents.md verification commands (`--features python,full`).
 full = ["all"]
 devices = ["dep:openevt-devices", "openevt-core/full"]
 python = ["devices", "plugins", "dep:openevt-py", "openevt-py/python"]
 framegen = ["dep:openevt-abi", "openevt-abi/framegen"]
 plugins = ["dep:openevt-abi"]
+# Decoder domain features re-exported from openevt-core so downstream
+# single-crate consumers can gate them as in the pre-split monolith.
+evt3 = ["openevt-core/evt3"]
+decoder = ["openevt-core/decoder"]
 
 [dependencies]
 openevt-core = { path = "crates/openevt-core" }
