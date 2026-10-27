@@ -2,7 +2,6 @@
 
 use crate::simulator::error::SimError;
 use crate::simulator::solver::{EvsParameters, EvsSimulator};
-use abi_stable::prefix_type::PrefixTypeTrait;
 use abi_stable::std_types::{ROption, RResult, RString, RVec};
 use abi_stable::type_level::downcasting::TD_Opaque;
 use ffmpeg_next::codec;
@@ -11,11 +10,11 @@ use ffmpeg_next::software::scaling::{context::Context, flag::Flags};
 use ffmpeg_next::util::error::{EAGAIN, Error as FfmpegError};
 use ffmpeg_next::util::frame::video::Video;
 use hotpath::wrap::std::sync::mpsc::{Receiver, SyncSender};
-use openevt::hal::device::configuration::PluginConfigurationSchema;
-use openevt::hal::device::discovery::ConnectionType;
-use openevt::hal::device::plugin::{
+use openevt_abi::configuration::PluginConfigurationSchema;
+use openevt_core::hal::device::discovery::ConnectionType;
+use openevt_abi::plugin::{
     self, DeviceDiscoveryPlugin, DeviceDiscoveryPlugin_TO, DeviceDiscoveryPluginBox,
-    DevicePlugin_TO, DevicePluginBox, DevicePluginModuleRef, DevicePluginModuleVtable,
+    DevicePlugin_TO, DevicePluginBox,
     EventBatchSinkBox, PluginCameraDescriptionAbi, PluginConfiguration,
     PluginEventSubscriptionFacility, PluginEventSubscriptionFacility_TO, PluginFacility,
     PluginFacilityHandle, PluginFacilityType, PluginGeometry, PluginGeometryFacility,
@@ -23,7 +22,7 @@ use openevt::hal::device::plugin::{
     PluginRawEventStreamFacility, PluginRawEventStreamFacility_TO, PluginSeekFacility,
     PluginSeekFacility_TO, PluginStreamBuffer,
 };
-use openevt::types::{EventCD, EventTimestamp};
+use openevt_core::types::{EventCD, EventTimestamp};
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{RecvTimeoutError, sync_channel};
@@ -924,7 +923,8 @@ impl plugin::DevicePlugin for SimulatorDevice {
     }
 }
 
-struct SimulatorDiscovery;
+/// Discovery interface advertising the software event simulator.
+pub struct SimulatorDiscovery;
 
 impl DeviceDiscoveryPlugin for SimulatorDiscovery {
     fn discover(&self) -> RVec<PluginCameraDescriptionAbi> {
@@ -964,30 +964,20 @@ impl DeviceDiscoveryPlugin for SimulatorDiscovery {
     }
 }
 
-extern "C" fn simulator_plugin_name() -> RString {
-    "openevt_simulator".into()
-}
+/// Name this device is advertised under.
+pub const SIMULATOR_PLUGIN_NAME: &str = "openevt_simulator";
 
-extern "C" fn create_simulator_discovery() -> DeviceDiscoveryPluginBox {
+/// Builds the simulator discovery interface for the crate root module.
+pub extern "C" fn create_simulator_discovery() -> DeviceDiscoveryPluginBox {
     DeviceDiscoveryPlugin_TO::from_value(SimulatorDiscovery, TD_Opaque)
-}
-
-/// Constructs the simulator plugin root module.
-#[abi_stable::export_root_module]
-pub fn instantiate_root_module() -> DevicePluginModuleRef {
-    DevicePluginModuleVtable {
-        name: simulator_plugin_name,
-        create_discovery: create_simulator_discovery,
-    }
-    .leak_into_prefix()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use abi_stable::std_types::{RResult, RSlice};
-    use openevt::hal::device::plugin::{DevicePlugin, EventBatchSink, EventBatchSink_TO};
-    use openevt::types::{EventCD, EventExtTrigger};
+    use openevt_abi::plugin::{DevicePlugin, EventBatchSink, EventBatchSink_TO};
+    use openevt_core::types::{EventCD, EventExtTrigger};
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
 

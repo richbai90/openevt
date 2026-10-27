@@ -40,11 +40,12 @@ testing, and troubleshooting commands.
 .
 ├── Cargo.toml
 ├── docs/        # Plugin development and architecture guides
-└── src/
-    ├── hal/       # HAL abstractions, facilities, dispatchers, and decoders
-    ├── buffer.rs   # pooled event buffers
-    ├── framegen.rs # feature-gated frame-generation plugin ABI
-    └── devices/    # feature-gated raw-file support
+├── crates/
+│   ├── openevt-core/    # types, HAL traits/facilities, decoders, algorithms
+│   ├── openevt-devices/ # file-backed raw event device
+│   ├── openevt-abi/     # stable plugin ABI, registry, host adapters, framegen
+│   └── openevt-py/      # PyO3 bindings (python feature)
+└── src/             # facade crate re-exporting the workspace crates
 ```
 
 Enable the frame-generation API with `features = ["framegen"]`. It is also
@@ -52,12 +53,14 @@ included by the default `all` feature.
 
 The primary modules are:
 
-- `hal` contains event types, decoder and device traits, facilities, and
-  dispatchers.
-- `buffer` provides `PooledBuffer<T>` for reusable decoded-event batches.
-- `devices` contains raw-file header parsing, indexing, stream/decoder wiring,
-  and reader/iterator APIs. Its main types are also re-exported at the crate
-  root when the `devices` feature is enabled.
+- `openevt-core` contains event types, decoder and device traits, facilities,
+  dispatchers, buffers, and algorithms.
+- `openevt-devices` contains raw-file header parsing, indexing,
+  stream/decoder wiring, and reader/iterator APIs. Its main types are also
+  re-exported at the crate root when the `devices` feature is enabled.
+- `openevt-abi` hosts the stable plugin ABI, plugin registry/loading, and the
+  host-side plugin adapters, including the frame-generation contract.
+- `openevt-py` hosts the PyO3 bindings, gated behind the `python` feature.
 
 For a developer-focused walkthrough of dynamic device plugins, see the
 [plugin development guide](docs/plugin-development-guide.md). Raw-file access

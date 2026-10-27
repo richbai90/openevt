@@ -2,7 +2,7 @@
 
 Frame-generation plugins turn decoded CD events into images. They are not
 device plugins and do not discover cameras. The contract is in
-[`src/framegen.rs`](../src/framegen.rs).
+[`crates/openevt-abi/src/framegen.rs`](../crates/openevt-abi/src/framegen.rs).
 
 ## Create the crate
 
@@ -38,7 +38,7 @@ Minimal generator skeleton:
 use abi_stable::{sabi_trait, std_types::{ROption, RSlice, RSliceMut}};
 use openevt::{
     framegen::{FrameGenerator, FrameSpec},
-    hal::types::{EventCD, EventTimestamp},
+    types::{EventCD, EventTimestamp},
 };
 
 pub struct Example {

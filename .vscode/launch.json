@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "codelldb",
+      "request": "launch",
+      "name": "Debug camera_live test",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "-p",
+          "openevt-plugin-lucid-evs",
+          "--test",
+          "camera_live"
+        ],
+        "filter": {
+          "name": "camera_live",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

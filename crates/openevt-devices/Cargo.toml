@@ -1,0 +1,19 @@
+[package]
+name = "openevt-devices"
+version = "1.0.5"
+edition = "2024"
+authors = ["Rich Baird <rich@rbaird.me>"]
+description = "File-backed raw event device implementation for the openevt stack"
+license = "MIT"
+repository = "https://github.com/richbai90/openevt"
+
+[dependencies]
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
+openevt-core = { path = "../openevt-core", features = ["full"] }
+slotmap = "1.1.1"
+thiserror = "2.0.18"
+
+[lib]
+name = "openevt_devices"
+path = "src/lib.rs"
+crate-type = ["rlib"]

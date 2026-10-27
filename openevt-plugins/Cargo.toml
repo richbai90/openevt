@@ -26,12 +26,14 @@ ffmpeg-next = { version = "9.0.0", default-features = false, features = [
 hotpath = "0.23"
 serde = { version = "1.0.229", features = ["derive"] }
 toml = { version = "1.1.4", features = ["serde"] }
-openevt = { version = "1.0.4", default-features = false, features = [
+openevt = { version = "1.0.5", default-features = false, features = [
     "devices",
     "plugins",
-    "library-link",
 ], path = "../" }
+openevt-core = { version = "1.0.5", path = "../crates/openevt-core", features = ["full"] }
+openevt-abi = { version = "1.0.5", path = "../crates/openevt-abi" }
 abi_stable = "0.11.3"
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 rayon = "1.11"
 thiserror = "2.0.19"
 pyo3 = { version = "0.29.0", optional = true, features = ["extension-module"] }

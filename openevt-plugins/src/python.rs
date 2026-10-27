@@ -1,6 +1,6 @@
 use crate::simulator::plugin::VideoSimulator;
 use crate::simulator::solver::EvsParameters;
-use openevt::types::EventTimestamp;
+use openevt_core::types::EventTimestamp;
 use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
 

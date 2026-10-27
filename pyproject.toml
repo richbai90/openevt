@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "openevt"
-version = "1.0.4"
+version = "1.0.5"
 description = "Independent OpenEB-inspired event camera abstractions and Python bindings"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,7 +27,11 @@ classifiers = [
 
 [tool.maturin]
 bindings = "pyo3"
-features = ["python"]
+# PyO3 bindings live in the openevt-py workspace member; the module keeps the
+# `openevt` import name so existing Python users are unaffected.
+module-name = "openevt"
+manifest-dir = "crates/openevt-py"
+features = ["python", "full"]
 strip = true
 exclude = [
     "openevt-plugins/tools/**",
