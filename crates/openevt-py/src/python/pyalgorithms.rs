@@ -10,7 +10,7 @@ use openevt_core::{
             LinearDecayTimeSurfaceTransformer,
         },
     },
-    types::{EventCoordinate, EventTimestamp},
+    types::{EventCD, EventCoordinate, EventTimestamp},
 };
 use crate::python::pydevice::{PyEventCD, events_from_numpy, events_to_numpy};
 use numpy::{PyArray3, PyReadonlyArray1};
@@ -25,10 +25,10 @@ where
     F: EvtProcessor,
 {
     let events = events_from_numpy(events)?;
-    let output = filter
+    let output: Vec<EventCD> = filter
         .process_events(Box::new(events.into_iter()))
         .collect();
-    Ok(events_to_numpy(py, output))
+    Ok(events_to_numpy(py, &output))
 }
 
 #[pyclass(name = "PolarityFilter")]

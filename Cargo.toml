@@ -10,6 +10,12 @@ members = [
 ]
 resolver = "3"
 
+# The decode hot path moves large event batches through a few crates; whole-
+# program LTO lets the decoder loops inline across those crate boundaries.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
 [package]
 name = "openevt"
 version = "1.0.5"

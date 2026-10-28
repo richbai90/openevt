@@ -318,12 +318,15 @@ impl Evt3Decoder {
                 let valid = word & mask;
 
                 // Generate CD events for each active bit in the vector payload
+                // by walking only the set bits, not the whole payload width.
                 if y < self.max_y {
-                    for i in 0..bit_count {
-                        if (valid >> i) & 0x01 == 1 {
-                            self.cd_buffer
-                                .push(EventCD::new((x + i).into(), y.into(), p, t));
-                        }
+                    let mut bits = valid;
+                    while bits != 0 {
+                        let i = u16::try_from(bits.trailing_zeros())
+                            .expect("vector payloads are 12 bits wide at most");
+                        self.cd_buffer
+                            .push(EventCD::new((x + i).into(), y.into(), p, t));
+                        bits &= bits - 1;
                     }
                 }
 
@@ -432,17 +435,20 @@ impl Evt3Decoder {
     }
 
     /// Dispatches all currently buffered events.
+    ///
+    /// Subscribers receive borrowed slices and must copy anything they keep, so
+    /// the decoder retains its buffers and their capacity between dispatches.
     fn dispatch(&mut self) {
         // Process CD (Change Detection) buffer if it contains any events
         if !self.cd_buffer.is_empty() {
-            let populated_buffer = std::mem::take(&mut self.cd_buffer);
-            self.evt_dispatcher.send_cd(&populated_buffer);
+            self.evt_dispatcher.send_cd(&self.cd_buffer);
+            self.cd_buffer.clear();
         }
 
         // Process external trigger buffer if it contains any events
         if !self.ext_trigger_buffer.is_empty() {
-            let populated_buffer = std::mem::take(&mut self.ext_trigger_buffer);
-            self.evt_dispatcher.send_ext(&populated_buffer);
+            self.evt_dispatcher.send_ext(&self.ext_trigger_buffer);
+            self.ext_trigger_buffer.clear();
         }
     }
 }

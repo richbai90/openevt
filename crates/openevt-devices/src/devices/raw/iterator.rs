@@ -36,8 +36,10 @@ pub struct EventWindowIterator<const BUFFER_SIZE: usize, State = IterUnconfigure
     stream_handle: Arc<RwLock<dyn RawEventStreamFacility + Send + 'static>>,
     decoder_handle: Arc<RwLock<dyn RawEventStreamDecoderFacility + Send + 'static>>,
     receiver: Receiver<Vec<EventCD>>,
-    // Holds leftover events from decoded batches that have not been consumed yet
-    internal_buffer: std::collections::VecDeque<EventCD>,
+    // Holds the decoded batch that has not been consumed yet. Consumption is a
+    // cursor move, so events are never shifted or copied one at a time.
+    internal_buffer: Vec<EventCD>,
+    internal_cursor: usize,
     // Tracks the current temporal baseline for slicing fixed delta-t windows
     current_timestamp: Option<EventTimestamp>,
     shape: (u32, u32),
@@ -57,7 +59,8 @@ impl<const BUFFER_SIZE: usize> EventWindowIterator<BUFFER_SIZE, IterUnconfigured
         Self {
             stream_handle,
             receiver,
-            internal_buffer: std::collections::VecDeque::new(),
+            internal_buffer: Vec::new(),
+            internal_cursor: 0,
             current_timestamp: None,
             shape,
             decoder_handle,
@@ -72,6 +75,7 @@ impl<const BUFFER_SIZE: usize> EventWindowIterator<BUFFER_SIZE, IterUnconfigured
             decoder_handle: self.decoder_handle,
             receiver: self.receiver,
             internal_buffer: self.internal_buffer,
+            internal_cursor: self.internal_cursor,
             current_timestamp: self.current_timestamp,
             shape: self.shape,
             _state: PhantomData,
@@ -85,6 +89,7 @@ impl<const BUFFER_SIZE: usize> EventWindowIterator<BUFFER_SIZE, IterUnconfigured
             decoder_handle: self.decoder_handle,
             receiver: self.receiver,
             internal_buffer: self.internal_buffer,
+            internal_cursor: self.internal_cursor,
             current_timestamp: self.current_timestamp,
             shape: self.shape,
             _state: PhantomData,
@@ -101,7 +106,7 @@ pub trait BufferReplenisher {
 // ASYNC MODE: Waits for an external thread to feed the channel.
 impl<const BUFFER_SIZE: usize> BufferReplenisher for EventWindowIterator<BUFFER_SIZE, IterAsync> {
     fn replenish_buffer(&mut self) -> Result<(), DeviceFileError> {
-        if self.internal_buffer.is_empty() {
+        if self.remaining() == 0 {
             self.drain_channel_once();
         }
         Ok(())
@@ -111,7 +116,7 @@ impl<const BUFFER_SIZE: usize> BufferReplenisher for EventWindowIterator<BUFFER_
 // SYNC MODE: Loads the batch locally first, then consumes the channel
 impl<const BUFFER_SIZE: usize> BufferReplenisher for EventWindowIterator<BUFFER_SIZE, IterSync> {
     fn replenish_buffer(&mut self) -> Result<(), DeviceFileError> {
-        if self.internal_buffer.is_empty() {
+        if self.remaining() == 0 {
             while !self.try_drain_channel_once() {
                 self.load_batch()?;
             }
@@ -127,10 +132,19 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
         self.shape
     }
 
+    /// Number of decoded events not yet consumed from the current batch.
+    fn remaining(&self) -> usize {
+        self.internal_buffer.len() - self.internal_cursor
+    }
+
     /// Internal logic for reading channel data into `internal_buffer`.
+    ///
+    /// The batch is taken from the channel by move, so no event bytes are
+    /// copied here.
     fn drain_channel_once(&mut self) {
         if let Ok(events) = self.receiver.recv() {
-            self.internal_buffer.extend(events);
+            self.internal_buffer = events;
+            self.internal_cursor = 0;
         }
     }
 
@@ -141,7 +155,8 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
     fn try_drain_channel_once(&mut self) -> bool {
         match self.receiver.try_recv() {
             Ok(events) => {
-                self.internal_buffer.extend(events);
+                self.internal_buffer = events;
+                self.internal_cursor = 0;
                 true
             }
             Err(_) => false,
@@ -183,24 +198,26 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
         let mut batch = Vec::with_capacity(limit);
 
         while batch.len() < limit {
-            if self.internal_buffer.is_empty() {
+            if self.remaining() == 0 {
                 if let Err(error) = self.replenish_buffer() {
                     if !batch.is_empty() && is_end_of_file(&error) {
                         break;
                     }
                     return Err(error);
                 }
-                if self.internal_buffer.is_empty() {
+                if self.remaining() == 0 {
                     break; // Stream ended
                 }
             }
 
-            if let Some(event) = self.internal_buffer.pop_front() {
-                if self.current_timestamp.is_none() {
-                    self.current_timestamp = Some(event.t);
-                }
-                batch.push(event);
+            if batch.is_empty() && self.current_timestamp.is_none() {
+                self.current_timestamp = Some(self.internal_buffer[self.internal_cursor].t);
             }
+
+            let take = (limit - batch.len()).min(self.remaining());
+            let start = self.internal_cursor;
+            batch.extend_from_slice(&self.internal_buffer[start..start + take]);
+            self.internal_cursor += take;
         }
 
         Ok(batch)
@@ -214,14 +231,14 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
     where
         Self: BufferReplenisher,
     {
-        if self.internal_buffer.is_empty() {
+        if self.remaining() == 0 {
             self.replenish_buffer()?;
         }
 
         let start_ts = match self.current_timestamp {
             Some(ts) => ts,
             None => {
-                if let Some(first_ev) = self.internal_buffer.front() {
+                if let Some(first_ev) = self.internal_buffer.get(self.internal_cursor) {
                     let ts = first_ev.t;
                     self.current_timestamp = Some(ts);
                     ts
@@ -235,25 +252,26 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
         let mut window_events = Vec::new();
 
         loop {
-            if self.internal_buffer.is_empty() {
+            if self.remaining() == 0 {
                 if let Err(error) = self.replenish_buffer() {
                     if !window_events.is_empty() && is_end_of_file(&error) {
                         break;
                     }
                     return Err(error);
                 }
-                if self.internal_buffer.is_empty() {
+                if self.remaining() == 0 {
                     break;
                 }
             }
 
-            if let Some(event) = self.internal_buffer.front() {
-                if event.t < end_ts {
-                    window_events.push(self.internal_buffer.pop_front().unwrap());
-                } else {
-                    break;
-                }
+            // Decoded batches are timestamp-ordered, so the window is a prefix.
+            let rest = &self.internal_buffer[self.internal_cursor..];
+            let take = rest.partition_point(|event| event.t < end_ts);
+            if take == 0 {
+                break;
             }
+            window_events.extend_from_slice(&rest[..take]);
+            self.internal_cursor += take;
         }
 
         self.current_timestamp = Some(end_ts);
@@ -285,8 +303,8 @@ impl<const BUFFER_SIZE: usize> EventWindowIterator<BUFFER_SIZE, IterSync> {
             .map_err(|_| DeviceFileError::LockError)?;
 
         let stream = crate::facility_downcast_mut!(stream_facility, RawEventStream<BUFFER_SIZE>)?;
-        let (buffer, _) = stream.poll_buffer()?;
-        decoder_facility.decode(&buffer)?;
+        let buffer = stream.fill_buffer()?;
+        decoder_facility.decode(buffer)?;
         Ok(())
     }
 }

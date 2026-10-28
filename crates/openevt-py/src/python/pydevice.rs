@@ -10,7 +10,6 @@ use pyo3::{
     types::{PyDict, PyModule},
 };
 use std::{
-    collections::VecDeque,
     mem::{offset_of, size_of},
     sync::{Arc, Mutex},
 };
@@ -25,7 +24,7 @@ struct PyEventSink {
 
 impl EventBatchSink for PyEventSink {
     fn on_cd_events(&self, events: RSlice<'_, EventCD>) {
-        let _ = self.sender.send(events.iter().copied().collect());
+        let _ = self.sender.send(events.to_vec());
     }
 
     fn on_ext_events(&self, _events: RSlice<'_, openevt_core::types::EventExtTrigger>) {}
@@ -178,31 +177,38 @@ unsafe impl Element for PyEventCD {
     }
 
     fn get_dtype(py: Python<'_>) -> Bound<'_, numpy::PyArrayDescr> {
-        let np = py.import("numpy").expect("Failed to import numpy");
-        let dtype_spec = PyDict::new(py);
-        dtype_spec.set_item("names", ("x", "y", "p", "t")).unwrap();
-        dtype_spec
-            .set_item("formats", ("u8", "u8", "u1", "u8"))
-            .unwrap();
-        dtype_spec
-            .set_item(
-                "offsets",
-                (
-                    offset_of!(PyEventCD, x),
-                    offset_of!(PyEventCD, y),
-                    offset_of!(PyEventCD, p),
-                    offset_of!(PyEventCD, t),
-                ),
-            )
-            .unwrap();
-        dtype_spec
-            .set_item("itemsize", size_of::<PyEventCD>())
-            .unwrap();
+        // Building the structured dtype calls into Python; cache it so each
+        // decoded batch does not re-import numpy and rebuild the descriptor.
+        static DTYPE: std::sync::OnceLock<pyo3::Py<PyArrayDescr>> = std::sync::OnceLock::new();
+        let cached = DTYPE.get_or_init(|| {
+            let np = py.import("numpy").expect("Failed to import numpy");
+            let dtype_spec = PyDict::new(py);
+            dtype_spec.set_item("names", ("x", "y", "p", "t")).unwrap();
+            dtype_spec
+                .set_item("formats", ("u8", "u8", "u1", "u8"))
+                .unwrap();
+            dtype_spec
+                .set_item(
+                    "offsets",
+                    (
+                        offset_of!(PyEventCD, x),
+                        offset_of!(PyEventCD, y),
+                        offset_of!(PyEventCD, p),
+                        offset_of!(PyEventCD, t),
+                    ),
+                )
+                .unwrap();
+            dtype_spec
+                .set_item("itemsize", size_of::<PyEventCD>())
+                .unwrap();
 
-        np.call_method1("dtype", (dtype_spec,))
-            .unwrap()
-            .cast_into::<PyArrayDescr>()
-            .unwrap()
+            np.call_method1("dtype", (dtype_spec,))
+                .unwrap()
+                .cast_into::<PyArrayDescr>()
+                .unwrap()
+                .unbind()
+        });
+        cached.bind(py).clone()
     }
 
     fn clone_ref(&self, _py: Python<'_>) -> Self {
@@ -224,7 +230,7 @@ impl PyCDEventReceiver {
             .lock()
             .map_err(|_| PyRuntimeError::new_err("event receiver lock poisoned"))?;
         match receiver.try_recv() {
-            Ok(events) if !events.is_empty() => Ok(Some(events_to_numpy(py, events))),
+            Ok(events) if !events.is_empty() => Ok(Some(events_to_numpy(py, &events))),
             Ok(_) => Ok(None),
             Err(crossbeam::channel::TryRecvError::Empty) => Ok(None),
             Err(crossbeam::channel::TryRecvError::Disconnected) => Ok(None),
@@ -256,14 +262,16 @@ impl PyCDEventReceiver {
             if events.is_empty() {
                 None
             } else {
-                Some(events_to_numpy(py, events))
+                Some(events_to_numpy(py, &events))
             },
         )
     }
 }
 
-pub(crate) fn events_to_numpy<'py>(py: Python<'py>, events: Vec<EventCD>) -> Bound<'py, PyAny> {
-    PyArray1::from_vec(py, events.iter().map(PyEventCD::from).collect::<Vec<_>>()).into_any()
+pub(crate) fn events_to_numpy<'py>(py: Python<'py>, events: &[EventCD]) -> Bound<'py, PyAny> {
+    // `PyEventCD` is `Copy`, so `from_vec` performs one memcpy into the freshly
+    // allocated numpy buffer after the (vectorizable) field conversion.
+    PyArray1::from_vec(py, events.iter().map(PyEventCD::from).collect()).into_any()
 }
 
 pub(crate) fn events_from_numpy(events: PyReadonlyArray1<'_, PyEventCD>) -> PyResult<Vec<EventCD>> {
@@ -288,7 +296,15 @@ fn async_result<'py>(
 pub struct PyCDEventIterator {
     device: Arc<Mutex<DevicePluginBox>>,
     receiver: EventReceiver,
-    internal_buffer: VecDeque<EventCD>,
+    // Current decoded batch and the cursor of consumed events inside it.
+    // Consuming events only advances the cursor, so batches move from the
+    // channel into the iterator without per-event copying.
+    internal_buffer: Vec<EventCD>,
+    internal_cursor: usize,
+    // Reused output staging so each call does not allocate a fresh batch Vec.
+    // Staging holds numpy elements so the conversion happens exactly once:
+    // channel batch into staging, then one memcpy from staging into numpy.
+    scratch: Vec<PyEventCD>,
     current_timestamp: Option<EventTimestamp>,
     shape: (u32, u32),
 }
@@ -301,16 +317,19 @@ impl PyCDEventIterator {
     }
 
     fn __next__<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let events = self.take_up_to(PYTHON_BUFFER_SIZE)?;
-        if events.is_empty() {
+        let (count, _ended) = self.take_up_to(PYTHON_BUFFER_SIZE)?;
+        if count == 0 {
             return Err(pyo3::exceptions::PyStopIteration::new_err(()));
         }
-        Ok(events_to_numpy(py, events))
+        Ok(PyArray1::from_slice(py, &self.scratch[..count]).into_any())
     }
 
     fn next_batch<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let events = self.take_up_to(PYTHON_BUFFER_SIZE)?;
-        Ok(events_to_numpy(py, events))
+        let (count, ended) = self.take_up_to(PYTHON_BUFFER_SIZE)?;
+        if count == 0 && ended {
+            return Err(PyIOError::new_err("End of file reached"));
+        }
+        Ok(PyArray1::from_slice(py, &self.scratch[..count]).into_any())
     }
 
     /// Return up to `n` events while preserving any remaining events.
@@ -322,8 +341,11 @@ impl PyCDEventIterator {
             limit < PYTHON_BUFFER_SIZE,
             "requested event count must be smaller than the iterator buffer size"
         );
-        let events = self.take_up_to(limit)?;
-        Ok(events_to_numpy(py, events))
+        let (count, ended) = self.take_up_to(limit)?;
+        if count == 0 && ended {
+            return Err(PyIOError::new_err("End of file reached"));
+        }
+        Ok(PyArray1::from_slice(py, &self.scratch[..count]).into_any())
     }
 
     /// Return the next time window containing events within `dt` timestamp
@@ -333,8 +355,8 @@ impl PyCDEventIterator {
         py: Python<'py>,
         dt: EventTimestamp,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let events = self.take_delta(dt)?;
-        Ok(events_to_numpy(py, events))
+        let count = self.take_delta(dt)?;
+        Ok(PyArray1::from_slice(py, &self.scratch[..count]).into_any())
     }
 
     fn shape(&self) -> (u32, u32) {
@@ -343,9 +365,19 @@ impl PyCDEventIterator {
 }
 
 impl PyCDEventIterator {
-    fn replenish(&mut self) -> PyResult<()> {
-        if !self.internal_buffer.is_empty() {
-            return Ok(());
+    /// Number of decoded events not yet consumed from the current batch.
+    fn remaining(&self) -> usize {
+        self.internal_buffer.len() - self.internal_cursor
+    }
+
+    /// Refills the current batch, loading raw data on demand.
+    ///
+    /// Returns `true` when the stream reached its end. A partial batch is kept
+    /// for the caller to return before the end-of-file error surfaces, matching
+    /// the native iterator's documented behavior.
+    fn replenish(&mut self) -> PyResult<bool> {
+        if self.remaining() > 0 {
+            return Ok(false);
         }
         loop {
             if let Ok(events) = self
@@ -354,61 +386,85 @@ impl PyCDEventIterator {
                 .map_err(|_| PyRuntimeError::new_err("event receiver lock poisoned"))?
                 .try_recv()
             {
-                self.internal_buffer.extend(events);
-                return Ok(());
+                self.internal_buffer = events;
+                self.internal_cursor = 0;
+                return Ok(false);
             }
             let mut device = self
                 .device
                 .lock()
                 .map_err(|_| PyRuntimeError::new_err("plugin device lock poisoned"))?;
-            device
-                .load_batch()
-                .into_result()
-                .map_err(|error| PyIOError::new_err(error.to_string()))?;
-        }
-    }
-
-    fn take_up_to(&mut self, n: usize) -> PyResult<Vec<EventCD>> {
-        let mut events = Vec::with_capacity(n);
-        while events.len() < n {
-            self.replenish()?;
-            while events.len() < n {
-                let Some(event) = self.internal_buffer.pop_front() else {
-                    break;
-                };
-                if self.current_timestamp.is_none() {
-                    self.current_timestamp = Some(event.t);
+            match device.load_batch().into_result() {
+                Ok(()) => {}
+                Err(error) => {
+                    let message = error.to_string();
+                    if message == "End of file reached" {
+                        return Ok(true);
+                    }
+                    return Err(PyIOError::new_err(message));
                 }
-                events.push(event);
             }
         }
-        Ok(events)
     }
 
-    fn take_delta(&mut self, dt: EventTimestamp) -> PyResult<Vec<EventCD>> {
-        self.replenish()?;
+    /// Collect up to `n` events into `scratch`.
+    ///
+    /// Returns the event count and whether the stream ended. A partial batch is
+    /// still delivered when the stream ends mid-collection.
+    fn take_up_to(&mut self, n: usize) -> PyResult<(usize, bool)> {
+        self.scratch.clear();
+        let mut ended = false;
+        while self.scratch.len() < n {
+            let eof = self.replenish()?;
+            if self.remaining() == 0 {
+                ended = eof;
+                break;
+            }
+            if self.current_timestamp.is_none() {
+                self.current_timestamp = Some(self.internal_buffer[self.internal_cursor].t);
+            }
+            let take = (n - self.scratch.len()).min(self.remaining());
+            let start = self.internal_cursor;
+            self.scratch.extend(
+                self.internal_buffer[start..start + take]
+                    .iter()
+                    .map(PyEventCD::from),
+            );
+            self.internal_cursor += take;
+        }
+        Ok((self.scratch.len(), ended))
+    }
+
+    fn take_delta(&mut self, dt: EventTimestamp) -> PyResult<usize> {
+        self.scratch.clear();
+        if self.replenish()? {
+            return Err(PyIOError::new_err("End of file reached"));
+        }
         let start_ts = match self.current_timestamp {
             Some(ts) => ts,
             None => self
                 .internal_buffer
-                .front()
+                .get(self.internal_cursor)
                 .map(|event| event.t)
                 .unwrap_or(0),
         };
         self.current_timestamp = Some(start_ts);
         let end_ts = start_ts + dt;
-        let mut events = Vec::new();
         loop {
-            self.replenish()?;
-            match self.internal_buffer.front() {
-                Some(event) if event.t < end_ts => {
-                    events.push(self.internal_buffer.pop_front().unwrap());
-                }
-                _ => break,
+            if self.replenish()? {
+                break;
             }
+            // Decoded batches are timestamp-ordered, so the window is a prefix.
+            let rest = &self.internal_buffer[self.internal_cursor..];
+            let take = rest.partition_point(|event| event.t < end_ts);
+            if take == 0 {
+                break;
+            }
+            self.scratch.extend(rest[..take].iter().map(PyEventCD::from));
+            self.internal_cursor += take;
         }
         self.current_timestamp = Some(end_ts);
-        Ok(events)
+        Ok(self.scratch.len())
     }
 }
 
@@ -436,7 +492,7 @@ impl PyAsyncCDEventIterator {
             if events.is_empty() {
                 None
             } else {
-                Some(events_to_numpy(py, events))
+                Some(events_to_numpy(py, &events))
             },
         )
     }
@@ -507,7 +563,9 @@ impl PyRawFileReader {
         Ok(PyCDEventIterator {
             device: self.inner.device.clone(),
             receiver: self.inner.receiver.clone(),
-            internal_buffer: VecDeque::new(),
+            internal_buffer: Vec::new(),
+            internal_cursor: 0,
+            scratch: Vec::new(),
             current_timestamp: None,
             shape: self.inner.shape,
         })

@@ -136,15 +136,18 @@ impl Evt2Decoder {
     }
 
     /// Dispatches buffered CD and external-trigger events.
+    ///
+    /// Subscribers receive borrowed slices and must copy anything they keep, so
+    /// the decoder retains its buffers and their capacity between dispatches.
     fn dispatch(&mut self) {
         if !self.cd_buffer.is_empty() {
-            let populated_buffer = std::mem::take(&mut self.cd_buffer);
-            self.evt_dispatcher.send_cd(&populated_buffer);
+            self.evt_dispatcher.send_cd(&self.cd_buffer);
+            self.cd_buffer.clear();
         }
 
         if !self.ext_trigger_buffer.is_empty() {
-            let populated_buffer = std::mem::take(&mut self.ext_trigger_buffer);
-            self.evt_dispatcher.send_ext(&populated_buffer);
+            self.evt_dispatcher.send_ext(&self.ext_trigger_buffer);
+            self.ext_trigger_buffer.clear();
         }
     }
 }

@@ -306,8 +306,8 @@ impl<const BUFFER_SIZE: usize> RawFileReader<BUFFER_SIZE> {
             .map_err(|_| DeviceFileError::LockError)?;
 
         let stream = crate::facility_downcast_mut!(stream_facility, RawEventStream<BUFFER_SIZE>)?;
-        let (buffer, _) = stream.poll_buffer()?;
-        decoder_facility.decode(&buffer)?;
+        let buffer = stream.fill_buffer()?;
+        decoder_facility.decode(buffer)?;
         Ok(())
     }
 
