@@ -70,10 +70,10 @@ pub enum DecoderProtocolViolation {
 }
 
 /// Stream-level errors raised by raw input sources.
+///
+/// End of stream is not an error: stream APIs report it as `Ok(None)`.
 #[derive(Error, Debug)]
 pub enum StreamError {
-    #[error("End of file reached")]
-    EndOfFile,
     #[error("I/O error: {0}")]
     IoError(#[from] io::Error),
     #[error("Stream is disconnected")]

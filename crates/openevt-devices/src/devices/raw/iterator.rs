@@ -15,10 +15,7 @@ use std::{
 
 use crossbeam::channel::Receiver;
 use openevt_core::{
-    hal::{
-        errors::StreamError,
-        facilities::{FacilityError, RawEventStreamDecoderFacility, RawEventStreamFacility},
-    },
+    hal::facilities::{RawEventStreamDecoderFacility, RawEventStreamFacility},
     types::{EventCD, EventCount, EventTimestamp},
 };
 
@@ -100,28 +97,34 @@ impl<const BUFFER_SIZE: usize> EventWindowIterator<BUFFER_SIZE, IterUnconfigured
 /// Supplies decoded events to an [`EventWindowIterator`] when its buffer runs dry.
 pub trait BufferReplenisher {
     /// Ensures there are decoded events available in the internal buffer.
-    fn replenish_buffer(&mut self) -> Result<(), DeviceFileError>;
+    ///
+    /// Returns `true` when events are available and `false` when the stream
+    /// has ended. Real failures are returned as `Err`.
+    fn replenish_buffer(&mut self) -> Result<bool, DeviceFileError>;
 }
 
 // ASYNC MODE: Waits for an external thread to feed the channel.
 impl<const BUFFER_SIZE: usize> BufferReplenisher for EventWindowIterator<BUFFER_SIZE, IterAsync> {
-    fn replenish_buffer(&mut self) -> Result<(), DeviceFileError> {
+    fn replenish_buffer(&mut self) -> Result<bool, DeviceFileError> {
         if self.remaining() == 0 {
             self.drain_channel_once();
         }
-        Ok(())
+        Ok(self.remaining() > 0)
     }
 }
 
 // SYNC MODE: Loads the batch locally first, then consumes the channel
 impl<const BUFFER_SIZE: usize> BufferReplenisher for EventWindowIterator<BUFFER_SIZE, IterSync> {
-    fn replenish_buffer(&mut self) -> Result<(), DeviceFileError> {
-        if self.remaining() == 0 {
-            while !self.try_drain_channel_once() {
-                self.load_batch()?;
+    fn replenish_buffer(&mut self) -> Result<bool, DeviceFileError> {
+        while self.remaining() == 0 {
+            if self.try_drain_channel_once() {
+                break;
+            }
+            if self.load_batch()?.is_none() {
+                return Ok(false);
             }
         }
-        Ok(())
+        Ok(self.remaining() > 0)
     }
 }
 
@@ -140,11 +143,15 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
     /// Internal logic for reading channel data into `internal_buffer`.
     ///
     /// The batch is taken from the channel by move, so no event bytes are
-    /// copied here.
-    fn drain_channel_once(&mut self) {
-        if let Ok(events) = self.receiver.recv() {
-            self.internal_buffer = events;
-            self.internal_cursor = 0;
+    /// copied here. Returns `false` when the channel is disconnected.
+    fn drain_channel_once(&mut self) -> bool {
+        match self.receiver.recv() {
+            Ok(events) => {
+                self.internal_buffer = events;
+                self.internal_cursor = 0;
+                true
+            }
+            Err(_) => false,
         }
     }
 
@@ -167,7 +174,8 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
     ///
     /// The batch is capped at the iterator buffer size. If the stream ends after
     /// some events were already collected, those events are still returned.
-    pub fn next_batch(&mut self) -> Result<Vec<EventCD>, DeviceFileError>
+    /// `Ok(None)` means the stream has ended with no events left.
+    pub fn next_batch(&mut self) -> Result<Option<Vec<EventCD>>, DeviceFileError>
     where
         Self: BufferReplenisher,
     {
@@ -178,7 +186,8 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
     ///
     /// The requested count must be smaller than the iterator buffer size.
     /// Events beyond `n` remain available for the next call.
-    pub fn next_n(&mut self, n: EventCount) -> Result<Vec<EventCD>, DeviceFileError>
+    /// `Ok(None)` means the stream has ended with no events left.
+    pub fn next_n(&mut self, n: EventCount) -> Result<Option<Vec<EventCD>>, DeviceFileError>
     where
         Self: BufferReplenisher,
     {
@@ -191,7 +200,7 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
         self.next_up_to(limit)
     }
 
-    fn next_up_to(&mut self, limit: usize) -> Result<Vec<EventCD>, DeviceFileError>
+    fn next_up_to(&mut self, limit: usize) -> Result<Option<Vec<EventCD>>, DeviceFileError>
     where
         Self: BufferReplenisher,
     {
@@ -199,13 +208,7 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
 
         while batch.len() < limit {
             if self.remaining() == 0 {
-                if let Err(error) = self.replenish_buffer() {
-                    if !batch.is_empty() && is_end_of_file(&error) {
-                        break;
-                    }
-                    return Err(error);
-                }
-                if self.remaining() == 0 {
+                if !self.replenish_buffer()? {
                     break; // Stream ended
                 }
             }
@@ -220,19 +223,20 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
             self.internal_cursor += take;
         }
 
-        Ok(batch)
+        Ok((!batch.is_empty()).then_some(batch))
     }
 
     /// Returns the next window of CD events that fall within `dt` from the
     /// current timestamp baseline.
     ///
     /// The iterator advances its internal time baseline by `dt` after each call.
-    pub fn next_delta(&mut self, dt: EventTimestamp) -> Result<Vec<EventCD>, DeviceFileError>
+    /// `Ok(None)` means the stream has ended with no events left.
+    pub fn next_delta(&mut self, dt: EventTimestamp) -> Result<Option<Vec<EventCD>>, DeviceFileError>
     where
         Self: BufferReplenisher,
     {
-        if self.remaining() == 0 {
-            self.replenish_buffer()?;
+        if self.remaining() == 0 && !self.replenish_buffer()? {
+            return Ok(None);
         }
 
         let start_ts = match self.current_timestamp {
@@ -243,7 +247,7 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
                     self.current_timestamp = Some(ts);
                     ts
                 } else {
-                    return Ok(Vec::new());
+                    return Ok(None);
                 }
             }
         };
@@ -253,13 +257,7 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
 
         loop {
             if self.remaining() == 0 {
-                if let Err(error) = self.replenish_buffer() {
-                    if !window_events.is_empty() && is_end_of_file(&error) {
-                        break;
-                    }
-                    return Err(error);
-                }
-                if self.remaining() == 0 {
+                if !self.replenish_buffer()? {
                     break;
                 }
             }
@@ -275,21 +273,15 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
         }
 
         self.current_timestamp = Some(end_ts);
-        Ok(window_events)
+        Ok((!window_events.is_empty()).then_some(window_events))
     }
-}
-
-fn is_end_of_file(error: &DeviceFileError) -> bool {
-    matches!(
-        error,
-        DeviceFileError::EOF()
-            | DeviceFileError::FacilityError(FacilityError::Stream(StreamError::EndOfFile))
-    )
 }
 
 impl<const BUFFER_SIZE: usize> EventWindowIterator<BUFFER_SIZE, IterSync> {
     /// Loads and decodes one raw buffer into the iterator's event channel.
-    pub fn load_batch(&mut self) -> Result<(), DeviceFileError> {
+    ///
+    /// `Ok(None)` means the stream reached its end.
+    pub fn load_batch(&mut self) -> Result<Option<()>, DeviceFileError> {
         let mut stream_facility = self
             .stream_handle
             .as_ref()
@@ -303,8 +295,12 @@ impl<const BUFFER_SIZE: usize> EventWindowIterator<BUFFER_SIZE, IterSync> {
             .map_err(|_| DeviceFileError::LockError)?;
 
         let stream = crate::facility_downcast_mut!(stream_facility, RawEventStream<BUFFER_SIZE>)?;
-        let buffer = stream.fill_buffer()?;
-        decoder_facility.decode(buffer)?;
-        Ok(())
+        match stream.fill_buffer()? {
+            Some(buffer) => {
+                decoder_facility.decode(buffer)?;
+                Ok(Some(()))
+            }
+            None => Ok(None),
+        }
     }
 }

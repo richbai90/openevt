@@ -291,10 +291,11 @@ impl DevicePlugin for RawFilePlugin {
     fn load_batch(&mut self) -> RResult<(), RString> {
         let result = self.reader.lock().unwrap().load_batch();
         match result {
-            Ok(()) => {
+            Ok(Some(())) => {
                 self.drain_events();
                 RResult::ROk(())
             }
+            Ok(None) => RResult::RErr("End of file reached".into()),
             Err(error) => RResult::RErr(error.to_string().into()),
         }
     }
