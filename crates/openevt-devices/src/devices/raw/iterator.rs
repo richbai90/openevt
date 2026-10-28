@@ -207,10 +207,8 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
         let mut batch = Vec::with_capacity(limit);
 
         while batch.len() < limit {
-            if self.remaining() == 0 {
-                if !self.replenish_buffer()? {
-                    break; // Stream ended
-                }
+            if self.remaining() == 0 && !self.replenish_buffer()? {
+                break; // Stream ended
             }
 
             if batch.is_empty() && self.current_timestamp.is_none() {
@@ -256,10 +254,8 @@ impl<const BUFFER_SIZE: usize, State> EventWindowIterator<BUFFER_SIZE, State> {
         let mut window_events = Vec::new();
 
         loop {
-            if self.remaining() == 0 {
-                if !self.replenish_buffer()? {
-                    break;
-                }
+            if self.remaining() == 0 && !self.replenish_buffer()? {
+                break;
             }
 
             // Decoded batches are timestamp-ordered, so the window is a prefix.
