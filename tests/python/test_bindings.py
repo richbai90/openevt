@@ -17,7 +17,7 @@ import pytest
 
 
 ROOT = Path(__file__).parents[2]
-SAMPLE_RAW = ROOT / "tests" / "sample.raw"
+SAMPLE_RAW = ROOT / "crates" / "openevt-devices" / "tests" / "sample.raw"
 EVENT_DTYPE = np.dtype(
     {
         "names": ("x", "y", "p", "t"),
