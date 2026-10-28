@@ -56,12 +56,19 @@ def openevt():
     extension = ROOT / "target" / "debug" / "libopenevt.so"
     assert extension.exists()
 
-    # The Python extension and the raw-file plugin are built from the same
-    # crate, but the plugin must be loaded as a separate shared-library
-    # instance across the ABI boundary.
+    # The Python extension and the raw-file plugin live in different crates
+    # since the crate restructure, and the plugin must be loaded as a separate
+    # shared-library instance across the ABI boundary.
+    subprocess.run(
+        ["cargo", "build", "--quiet", "-p", "openevt-plugins"],
+        cwd=ROOT,
+        check=True,
+    )
+    plugin_lib = ROOT / "target" / "debug" / "libopenevt_plugins.so"
+    assert plugin_lib.exists()
     plugin_dir = ROOT / "target" / "debug" / "python-plugin"
     plugin_dir.mkdir(exist_ok=True)
-    shutil.copy2(extension, plugin_dir / "libopenevt_raw_file.so")
+    shutil.copy2(plugin_lib, plugin_dir / "libopenevt_raw_file.so")
     os.environ["OPENEVT_PLUGIN_PATH"] = str(plugin_dir)
 
     spec = importlib.util.spec_from_file_location("openevt", extension)
@@ -233,6 +240,33 @@ def test_sync_iterator_exposes_batch_and_time_windows(openevt):
     assert isinstance(time_window, np.ndarray)
     assert time_window.dtype.names == ("x", "y", "p", "t")
     assert np.all(time_window["t"] < batch["t"][-1] + 10_000)
+
+
+def test_sync_iterator_returns_none_at_eof(openevt):
+    reader = openevt.RawFileReader(str(SAMPLE_RAW))
+    iterator = reader.iter()
+
+    batches = 0
+    while (batch := iterator.next_batch()) is not None:
+        assert isinstance(batch, np.ndarray)
+        assert batch.size > 0
+        batches += 1
+
+    assert batches > 0
+    assert iterator.next_batch() is None
+    assert iterator.next_delta(10_000) is None
+
+
+def test_sync_iterator_raises_stop_iteration_when_exhausted(openevt):
+    reader = openevt.RawFileReader(str(SAMPLE_RAW))
+    iterator = reader.iter()
+
+    with pytest.raises(StopIteration):
+        while True:
+            next(iterator)
+
+    with pytest.raises(StopIteration):
+        next(iterator)
 
 
 def test_sync_iterator_next_n_preserves_remaining_events(openevt):

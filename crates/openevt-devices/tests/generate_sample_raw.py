@@ -6,6 +6,8 @@ tests assert against:
 
 - header declares EVT3 with 1280x720 so readers report shape (720, 1280)
 - at least 4096 CD events so a 4096-event batch fills completely
+- more than 131_072 events so the Python iterator's 131_072-event batch
+  leaves a remainder for the time-window tests
 - every shifted timestamp stays below 10_000 for the next_delta window tests
 - timestamps are non-decreasing so window slicing and next_n ordering hold
 
@@ -19,7 +21,7 @@ from pathlib import Path
 
 WIDTH = 1280
 HEIGHT = 720
-EVENT_COUNT = 6000
+EVENT_COUNT = 150_000
 MAX_TIMESTAMP = 10_000
 TIME_UPDATE_EVERY = 512
 
