@@ -22,7 +22,7 @@ use openevt_abi::plugin::{
     PluginRawEventStreamFacility, PluginRawEventStreamFacility_TO, PluginSeekFacility,
     PluginSeekFacility_TO, PluginStreamBuffer,
 };
-use openevt_core::types::{EventCD, EventTimestamp};
+use openevt_core::types::{EventCD, EventTimestamp, Polarity};
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{RecvTimeoutError, sync_channel};
@@ -319,7 +319,7 @@ impl VideoSimulator {
                 EventCD {
                     x: (pixel_index % self.width) as u64,
                     y: (pixel_index / self.width) as u64,
-                    p: event.polarity,
+                    p: Polarity::from(event.polarity),
                     t: event.timestamp.max(0.0) as EventTimestamp,
                 }
             })

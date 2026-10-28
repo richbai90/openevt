@@ -41,7 +41,7 @@ impl PyPolarityFilter {
     #[new]
     fn new(polarity: bool) -> Self {
         Self {
-            inner: filters::PolarityFilter::new(polarity),
+            inner: filters::PolarityFilter::new(openevt_core::types::Polarity::from(polarity)),
         }
     }
 

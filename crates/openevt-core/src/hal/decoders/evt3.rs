@@ -12,7 +12,7 @@ use crate::hal::facilities::{
     DecoderErrorCallback, EventCDCallback, EventExtTriggerCallback, EventSubscriptionFacility,
     FacilityResult, RawDecoderFacility, RawEventStreamDecoderFacility,
 };
-use crate::types::{EventCD, EventExtTrigger, EventTimestamp};
+use crate::types::{EventCD, EventExtTrigger, EventTimestamp, Polarity};
 use log::warn;
 use crate::new;
 use slotmap::{DefaultKey, SlotMap};
@@ -47,7 +47,7 @@ pub struct Evt3Decoder {
     /// Base X coordinate for vector payloads.
     base_x: u16,
     /// Current event polarity.
-    polarity: bool,
+    polarity: Polarity,
     /// Previous decoded EVT3 word type.
     prev_word: Option<EVTWord>,
     /// Accumulates payload bits for "others" style multiword sequences.
@@ -275,7 +275,7 @@ impl Evt3Decoder {
                 // Extract polarity and generate a Contrast Detector (CD) event
                 // Only if y is valid
                 if y < self.max_y {
-                    let p = ((word >> 11) & 0x01) == 1;
+                    let p = Polarity::from(((word >> 11) & 0x01) == 1);
                     let t = self.current_timestamp();
                     self.cd_buffer.push(EventCD::new(x.into(), y.into(), p, t));
                     self.prev_word = Some(EVTWord::AddrX);
@@ -288,7 +288,7 @@ impl Evt3Decoder {
                     return Err(DecoderProtocolViolation::MissingYAddr);
                 }
                 self.base_x = word & MASK_11;
-                self.polarity = ((word & MASK_12) >> 11 & 0x01) != 0;
+                self.polarity = Polarity::from(((word & MASK_12) >> 11 & 0x01) != 0);
                 self.prev_word = Some(EVTWord::VectBaseX);
             }
             EVTWord::Vect12 | EVTWord::Vect8 => {
@@ -338,7 +338,7 @@ impl Evt3Decoder {
                 // Decode external trigger events (e.g., synchronization signals)
                 let t = self.current_timestamp();
                 let channel = u64::from((word >> 8) & MASK_4);
-                let val = word & 0x01 == 1;
+                let val = Polarity::from(word & 0x01 == 1);
                 self.ext_trigger_buffer
                     .push(EventExtTrigger::new(val, t, channel));
                 self.prev_word = Some(EVTWord::ExtTrigger);

@@ -1,10 +1,10 @@
 use crate::algorithms::EvtProcessor;
-use crate::types::EventCD;
+use crate::types::{EventCD, Polarity};
 use derive_new::new;
 
 #[derive(new)]
 pub struct PolarityFilter {
-    polarity: bool,
+    polarity: Polarity,
 }
 
 impl EvtProcessor for PolarityFilter {
@@ -20,18 +20,18 @@ impl EvtProcessor for PolarityFilter {
 mod tests {
     use super::*;
 
-    fn event(x: u64, p: bool) -> EventCD {
+    fn event(x: u64, p: Polarity) -> EventCD {
         EventCD::new(x, 0, p, x)
     }
 
     #[test]
     fn forwards_only_matching_polarity_events() {
-        let mut filter = PolarityFilter::new(true);
+        let mut filter = PolarityFilter::new(Polarity::Positive);
         let events = vec![
-            event(0, false),
-            event(1, true),
-            event(2, false),
-            event(3, true),
+            event(0, Polarity::Negative),
+            event(1, Polarity::Positive),
+            event(2, Polarity::Negative),
+            event(3, Polarity::Positive),
         ];
 
         let output: Vec<_> = filter

@@ -1,6 +1,6 @@
 use openevt_abi::discovery::PluginRegistry;
 use openevt_abi::plugin::{DevicePluginBox, EventBatchSink, EventBatchSink_TO};
-use openevt_core::types::{EventCount, EventTimestamp, EventCD};
+use openevt_core::types::{EventCD, EventCount, EventTimestamp, Polarity};
 use abi_stable::{std_types::RSlice, type_level::downcasting::TD_Opaque};
 use crossbeam::channel::{Receiver, Sender};
 use numpy::{Element, PyArray1, PyArrayDescr, PyReadonlyArray1};
@@ -135,7 +135,7 @@ impl From<EventCD> for PyEventCD {
         Self {
             x: value.x,
             y: value.y,
-            p: value.p.into(),
+            p: value.p as u8,
             t: value.t,
         }
     }
@@ -143,7 +143,7 @@ impl From<EventCD> for PyEventCD {
 
 impl From<PyEventCD> for EventCD {
     fn from(value: PyEventCD) -> Self {
-        EventCD::new(value.x, value.y, value.p != 0, value.t)
+        EventCD::new(value.x, value.y, Polarity::from(value.p != 0), value.t)
     }
 }
 
@@ -152,14 +152,28 @@ impl From<&EventCD> for PyEventCD {
         Self {
             x: value.x,
             y: value.y,
-            p: value.p.into(),
+            p: value.p as u8,
             t: value.t,
         }
     }
 }
 
-// Safety: A #[repr(C)] struct containing only valid NumPy element types
-// satisfies the memory alignment and layout rules required by NumPy.
+// The unsafe Element impl below treats PyEventCD arrays as interchangeable
+// with EventCD layouts, so byte-compatibility is asserted, not assumed.
+const _: () = {
+    assert!(size_of::<PyEventCD>() == size_of::<EventCD>());
+    assert!(offset_of!(PyEventCD, x) == offset_of!(EventCD, x));
+    assert!(offset_of!(PyEventCD, y) == offset_of!(EventCD, y));
+    assert!(offset_of!(PyEventCD, p) == offset_of!(EventCD, p));
+    assert!(offset_of!(PyEventCD, t) == offset_of!(EventCD, t));
+};
+
+// Safety: PyEventCD is #[repr(C)] and byte-compatible with EventCD, enforced
+// by the layout assertions above. Every field is a plain integer: `p` stays
+// `u8` rather than `Polarity` because numpy arrays can contain arbitrary
+// bytes, and only 0 and 1 are valid `Polarity` discriminants. Conversions
+// therefore clamp through `!= 0` on input and `as u8` on output, so no
+// invalid byte value can ever be reinterpreted as a `Polarity`.
 unsafe impl Element for PyEventCD {
     const IS_COPY: bool = true;
     fn vec_from_slice(py: Python<'_>, slc: &[Self]) -> Vec<Self> {

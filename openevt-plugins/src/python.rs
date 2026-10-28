@@ -45,7 +45,7 @@ impl Simulator {
             .ok_or_else(|| PyIOError::new_err("end of simulator video"))?;
         Ok(events
             .into_iter()
-            .map(|event| (event.x, event.y, event.p, event.t))
+            .map(|event| (event.x, event.y, bool::from(event.p), event.t))
             .collect())
     }
 

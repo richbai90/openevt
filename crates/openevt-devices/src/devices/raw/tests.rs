@@ -8,7 +8,7 @@ use openevt_core::hal::facilities::{
     EventSubscriptionFacilityHandle, FacilityError, FacilityType,
     RawEventStreamDecoderFacilityHandle, RawEventStreamFacilityHandle,
 };
-use openevt_core::types::EventCD;
+use openevt_core::types::{EventCD, Polarity};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -214,19 +214,19 @@ fn sync_iterator_caps_batches_and_preserves_leftovers() -> TestResult {
         EventCD {
             x: 1,
             y: 2,
-            p: true,
+            p: Polarity::Positive,
             t: 10,
         },
         EventCD {
             x: 3,
             y: 4,
-            p: false,
+            p: Polarity::Negative,
             t: 11,
         },
         EventCD {
             x: 5,
             y: 6,
-            p: true,
+            p: Polarity::Positive,
             t: 12,
         },
     ];

@@ -46,8 +46,8 @@ impl EvtProcessor for ActivityNoiseFilter {
         Box::new(events.filter(move |evt| {
             let px_idx = self.get_pixel_index(evt.x, evt.y);
 
-            let prev_t_same_p = self.surface.get(evt.x, evt.y, evt.p);
-            let prev_t_opp_p = self.surface.get(evt.x, evt.y, !evt.p);
+            let prev_t_same_p = self.surface.get(evt.x, evt.y, evt.p.into());
+            let prev_t_opp_p = self.surface.get(evt.x, evt.y, (!evt.p).into());
 
             let delta_same_p = evt.t.saturating_sub(prev_t_same_p);
             let delta_opp_p = evt.t.saturating_sub(prev_t_opp_p);
@@ -69,7 +69,7 @@ impl EvtProcessor for ActivityNoiseFilter {
             }
 
             // Always update the time surface for the pixel coordinate
-            self.surface.update(evt.x, evt.y, evt.p, evt.t);
+            self.surface.update(evt.x, evt.y, evt.p.into(), evt.t);
 
             forward
         }))
@@ -82,7 +82,7 @@ mod tests {
     use crate::algorithms::EvtProcessor;
 
     fn event(p: bool, t: EventTimestamp) -> EventCD {
-        EventCD::new(0, 0, p, t)
+        EventCD::new(0, 0, crate::types::Polarity::from(p), t)
     }
 
     #[test]

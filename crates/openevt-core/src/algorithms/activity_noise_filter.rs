@@ -40,7 +40,7 @@ impl EvtProcessor for ActivityNoiseFilter {
                     {
                         let prev_t =
                             self.surface
-                                .get(nx as EventCoordinate, ny as EventCoordinate, evt.p);
+                                .get(nx as EventCoordinate, ny as EventCoordinate, evt.p.into());
 
                         if prev_t > 0 && evt.t.saturating_sub(prev_t) <= self.dt {
                             valid = true;
@@ -51,7 +51,7 @@ impl EvtProcessor for ActivityNoiseFilter {
             }
 
             // Always update the surface with the latest incoming timestamp for this pixel
-            self.surface.update(evt.x, evt.y, evt.p, evt.t);
+            self.surface.update(evt.x, evt.y, evt.p.into(), evt.t);
 
             valid
         }))
@@ -67,7 +67,7 @@ mod tests {
     };
 
     fn event(x: EventCoordinate, y: EventCoordinate, p: bool, t: EventTimestamp) -> EventCD {
-        EventCD::new(x, y, p, t)
+        EventCD::new(x, y, crate::types::Polarity::from(p), t)
     }
 
     #[test]
