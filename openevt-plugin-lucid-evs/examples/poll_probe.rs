@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use abi_stable::std_types::{RResult, RVec};
+use abi_stable::std_types::{ROption, RResult, RVec};
 use openevt_abi::discovery::PluginRegistry;
 use openevt_abi::plugin::{
     EventBatchSink, PluginConfiguration, EventBatchSink_TO, PluginFacilityHandle,
@@ -229,8 +229,14 @@ fn main() -> Result<(), String> {
         let frame_started = Instant::now();
 
         // Exactly one poll per frame cycle, like the viewer player thread.
-        let RResult::ROk(buffer) = stream.poll_buffer() else {
-            return Err("poll_buffer returned an error".into());
+        let buffer = match stream.poll_buffer() {
+            RResult::ROk(ROption::RSome(buffer)) => buffer,
+            RResult::ROk(ROption::RNone) => {
+                return Err("poll_buffer reached end of stream".into());
+            }
+            RResult::RErr(error) => {
+                return Err(format!("poll_buffer returned an error: {error}"));
+            }
         };
         total_polls += 1;
         sec_polls += 1;

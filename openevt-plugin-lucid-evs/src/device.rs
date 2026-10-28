@@ -543,7 +543,7 @@ impl PluginRawEventStreamFacility for RawEventStreamFacility {
         RResult::ROk(())
     }
 
-    fn poll_buffer(&mut self) -> RResult<PluginStreamBuffer, RString> {
+    fn poll_buffer(&mut self) -> RResult<ROption<PluginStreamBuffer>, RString> {
         // Block briefly instead of returning empty on the first try: hosts
         // poll at render cadence (~30 Hz), far slower than the camera fills
         // this channel. Draining as many buffers as are queued per call keeps
@@ -552,10 +552,10 @@ impl PluginRawEventStreamFacility for RawEventStreamFacility {
         match self.raw_receiver.recv_timeout(FALLBACK_RECV_TIMEOUT) {
             Ok(bytes) => buffers.push(bytes),
             Err(RecvTimeoutError::Timeout) => {
-                return RResult::ROk(PluginStreamBuffer {
+                return RResult::ROk(ROption::RSome(PluginStreamBuffer {
                     data: RVec::new(),
                     valid_len: 0,
-                });
+                }));
             }
             Err(RecvTimeoutError::Disconnected) => return self.stream_closed_error(),
         }
@@ -567,13 +567,13 @@ impl PluginRawEventStreamFacility for RawEventStreamFacility {
         for bytes in buffers {
             data.extend_from_slice(&bytes);
         }
-        RResult::ROk(PluginStreamBuffer {
+        RResult::ROk(ROption::RSome(PluginStreamBuffer {
             data: data.into(),
             valid_len,
-        })
+        }))
     }
 
-    fn wait_next_buffer(&mut self) -> RResult<PluginStreamBuffer, RString> {
+    fn wait_next_buffer(&mut self) -> RResult<ROption<PluginStreamBuffer>, RString> {
         let buffer = match self.raw_receiver.recv() {
             Ok(bytes) => PluginStreamBuffer {
                 data: bytes.to_vec().into(),
@@ -581,12 +581,14 @@ impl PluginRawEventStreamFacility for RawEventStreamFacility {
             },
             Err(_) => return self.stream_closed_error(),
         };
-        RResult::ROk(buffer)
+        RResult::ROk(ROption::RSome(buffer))
     }
 }
 
 impl RawEventStreamFacility {
-    fn stream_closed_error(&self) -> RResult<PluginStreamBuffer, RString> {
+    fn stream_closed_error(&self) -> RResult<ROption<PluginStreamBuffer>, RString> {
+        // A closed camera stream is a real failure, not an end of file: the
+        // host should surface it as an error, so this stays `RErr`.
         if let Ok(error) = self.error.lock() {
             if let Some(message) = error.clone() {
                 return RResult::RErr(message.into());
@@ -815,7 +817,7 @@ impl DevicePlugin for LucidEvsDevice {
         RResult::RErr("external triggers are not supported by this plugin".into())
     }
 
-    fn load_batch(&mut self) -> RResult<(), RString> {
+    fn load_batch(&mut self) -> RResult<ROption<()>, RString> {
         RResult::RErr("use the RawEventStream and RawEventStreamDecoder facilities".into())
     }
 }

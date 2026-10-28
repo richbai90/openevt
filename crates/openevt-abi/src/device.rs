@@ -386,11 +386,13 @@ impl RawEventStreamFacility for PluginRawEventStreamFacility {
             .into_result()
             .map_err(|e| FacilityError::Plugin(e.to_string()))
     }
-    fn poll_buffer(&mut self) -> openevt_core::hal::facilities::FacilityResult<Option<StreamBuffer>> {
+    fn poll_buffer(
+        &mut self,
+    ) -> openevt_core::hal::facilities::FacilityResult<Option<StreamBuffer>> {
         self.stream
             .poll_buffer()
             .into_result()
-            .map(|b| Some((b.data.into(), b.valid_len)))
+            .map(|buffer| buffer.into_option().map(|b| (b.data.into(), b.valid_len)))
             .map_err(|e| FacilityError::Plugin(e.to_string()))
     }
     fn wait_next_buffer(
@@ -399,7 +401,7 @@ impl RawEventStreamFacility for PluginRawEventStreamFacility {
         self.stream
             .wait_next_buffer()
             .into_result()
-            .map(|b| Some((b.data.into(), b.valid_len)))
+            .map(|buffer| buffer.into_option().map(|b| (b.data.into(), b.valid_len)))
             .map_err(|e| FacilityError::Plugin(e.to_string()))
     }
 }

@@ -288,14 +288,14 @@ impl DevicePlugin for RawFilePlugin {
         }
     }
 
-    fn load_batch(&mut self) -> RResult<(), RString> {
+    fn load_batch(&mut self) -> RResult<ROption<()>, RString> {
         let result = self.reader.lock().unwrap().load_batch();
         match result {
             Ok(Some(())) => {
                 self.drain_events();
-                RResult::ROk(())
+                RResult::ROk(ROption::RSome(()))
             }
-            Ok(None) => RResult::RErr("End of file reached".into()),
+            Ok(None) => RResult::ROk(ROption::RNone),
             Err(error) => RResult::RErr(error.to_string().into()),
         }
     }
@@ -401,7 +401,10 @@ mod tests {
         let sink_box = EventBatchSink_TO::from_value(CountingSink, TD_Opaque);
 
         assert!(matches!(plugin.start_events(sink_box), RResult::ROk(())));
-        assert!(matches!(plugin.load_batch(), RResult::ROk(())));
+        assert!(matches!(
+            plugin.load_batch(),
+            RResult::ROk(ROption::RSome(()))
+        ));
         assert!(CD_BATCHES.load(Ordering::Relaxed) > 0);
         assert!(CD_EVENTS.load(Ordering::Relaxed) > 0);
     }

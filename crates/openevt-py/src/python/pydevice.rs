@@ -1,7 +1,10 @@
 use openevt_abi::discovery::PluginRegistry;
 use openevt_abi::plugin::{DevicePluginBox, EventBatchSink, EventBatchSink_TO};
 use openevt_core::types::{EventCD, EventCount, EventTimestamp, Polarity};
-use abi_stable::{std_types::RSlice, type_level::downcasting::TD_Opaque};
+use abi_stable::{
+    std_types::{ROption, RSlice},
+    type_level::downcasting::TD_Opaque,
+};
 use crossbeam::channel::{Receiver, Sender};
 use numpy::{Element, PyArray1, PyArrayDescr, PyReadonlyArray1};
 use pyo3::{
@@ -75,13 +78,16 @@ impl PluginReader {
         })
     }
 
-    fn load_batch(&self) -> PyResult<()> {
-        self.device
+    /// Loads one batch from the plugin. Returns `false` at end of file.
+    fn load_batch(&self) -> PyResult<bool> {
+        let batch = self
+            .device
             .lock()
             .map_err(|_| PyRuntimeError::new_err("plugin device lock poisoned"))?
             .load_batch()
             .into_result()
-            .map_err(|error| PyIOError::new_err(error.to_string()))
+            .map_err(|error| PyIOError::new_err(error.to_string()))?;
+        Ok(batch.is_some())
     }
 
     fn seek(&self, timestamp: EventTimestamp) -> PyResult<()> {
@@ -338,16 +344,20 @@ impl PyCDEventIterator {
         Ok(PyArray1::from_slice(py, &self.scratch[..count]).into_any())
     }
 
-    fn next_batch<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn next_batch<'py>(&mut self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         let (count, ended) = self.take_up_to(PYTHON_BUFFER_SIZE)?;
         if count == 0 && ended {
-            return Err(PyIOError::new_err("End of file reached"));
+            return Ok(None);
         }
-        Ok(PyArray1::from_slice(py, &self.scratch[..count]).into_any())
+        Ok(Some(PyArray1::from_slice(py, &self.scratch[..count]).into_any()))
     }
 
     /// Return up to `n` events while preserving any remaining events.
-    fn next_n<'py>(&mut self, py: Python<'py>, n: EventCount) -> PyResult<Bound<'py, PyAny>> {
+    fn next_n<'py>(
+        &mut self,
+        py: Python<'py>,
+        n: EventCount,
+    ) -> PyResult<Option<Bound<'py, PyAny>>> {
         let limit = usize::try_from(n).map_err(|_| {
             PyValueError::new_err("requested event count does not fit this platform")
         })?;
@@ -357,20 +367,23 @@ impl PyCDEventIterator {
         );
         let (count, ended) = self.take_up_to(limit)?;
         if count == 0 && ended {
-            return Err(PyIOError::new_err("End of file reached"));
+            return Ok(None);
         }
-        Ok(PyArray1::from_slice(py, &self.scratch[..count]).into_any())
+        Ok(Some(PyArray1::from_slice(py, &self.scratch[..count]).into_any()))
     }
 
     /// Return the next time window containing events within `dt` timestamp
-    /// units of the iterator's current time baseline.
+    /// units of the iterator's current time baseline, or `None` at end of
+    /// stream.
     fn next_delta<'py>(
         &mut self,
         py: Python<'py>,
         dt: EventTimestamp,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let count = self.take_delta(dt)?;
-        Ok(PyArray1::from_slice(py, &self.scratch[..count]).into_any())
+    ) -> PyResult<Option<Bound<'py, PyAny>>> {
+        let Some(count) = self.take_delta(dt)? else {
+            return Ok(None);
+        };
+        Ok(Some(PyArray1::from_slice(py, &self.scratch[..count]).into_any()))
     }
 
     fn shape(&self) -> (u32, u32) {
@@ -409,14 +422,9 @@ impl PyCDEventIterator {
                 .lock()
                 .map_err(|_| PyRuntimeError::new_err("plugin device lock poisoned"))?;
             match device.load_batch().into_result() {
-                Ok(()) => {}
-                Err(error) => {
-                    let message = error.to_string();
-                    if message == "End of file reached" {
-                        return Ok(true);
-                    }
-                    return Err(PyIOError::new_err(message));
-                }
+                Ok(ROption::RSome(())) => {}
+                Ok(ROption::RNone) => return Ok(true),
+                Err(error) => return Err(PyIOError::new_err(error.to_string())),
             }
         }
     }
@@ -449,10 +457,13 @@ impl PyCDEventIterator {
         Ok((self.scratch.len(), ended))
     }
 
-    fn take_delta(&mut self, dt: EventTimestamp) -> PyResult<usize> {
+    /// Collect the next `dt` time window into `scratch`.
+    ///
+    /// Returns `None` when the stream ended before any events were collected.
+    fn take_delta(&mut self, dt: EventTimestamp) -> PyResult<Option<usize>> {
         self.scratch.clear();
         if self.replenish()? {
-            return Err(PyIOError::new_err("End of file reached"));
+            return Ok(None);
         }
         let start_ts = match self.current_timestamp {
             Some(ts) => ts,
@@ -478,7 +489,7 @@ impl PyCDEventIterator {
             self.internal_cursor += take;
         }
         self.current_timestamp = Some(end_ts);
-        Ok(self.scratch.len())
+        Ok(Some(self.scratch.len()))
     }
 }
 
@@ -563,7 +574,8 @@ impl PyRawFileReader {
     }
 
     fn load_batch(&mut self) -> PyResult<()> {
-        self.inner.load_batch()
+        self.inner.load_batch()?;
+        Ok(())
     }
 
     fn cd_receiver(&mut self) -> PyResult<PyCDEventReceiver> {

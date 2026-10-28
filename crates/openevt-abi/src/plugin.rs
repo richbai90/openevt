@@ -406,9 +406,15 @@ pub trait PluginRawEventStreamFacility: Send + Sync {
     /// Stops the raw stream.
     fn stop(&mut self) -> RResult<(), RString>;
     /// Polls for the next raw buffer.
-    fn poll_buffer(&mut self) -> RResult<PluginStreamBuffer, RString>;
+    ///
+    /// `ROk(RNone)` means the stream reached its end; `RErr` is reserved for
+    /// real failures.
+    fn poll_buffer(&mut self) -> RResult<ROption<PluginStreamBuffer>, RString>;
     /// Waits for the next raw buffer.
-    fn wait_next_buffer(&mut self) -> RResult<PluginStreamBuffer, RString>;
+    ///
+    /// `ROk(RNone)` means the stream reached its end; `RErr` is reserved for
+    /// real failures.
+    fn wait_next_buffer(&mut self) -> RResult<ROption<PluginStreamBuffer>, RString>;
 }
 
 /// ABI-safe boxed raw event-stream facility.
@@ -749,7 +755,10 @@ pub trait DevicePlugin: Send + Sync {
     fn start_external_triggers(&mut self, sink: EventBatchSinkBox) -> RResult<(), RString>;
     #[deprecated(note = "use the event-stream facility")]
     /// Loads one legacy event batch.
-    fn load_batch(&mut self) -> RResult<(), RString>;
+    ///
+    /// `ROk(RNone)` means the stream reached its end; `RErr` is reserved for
+    /// real failures.
+    fn load_batch(&mut self) -> RResult<ROption<()>, RString>;
 }
 
 pub type DevicePluginBox = DevicePlugin_TO<'static, RBox<()>>;
