@@ -13,7 +13,7 @@ use crate::hal::facilities::{
     DecoderErrorCallback, EventCDCallback, EventExtTriggerCallback, EventSubscriptionFacility,
     FacilityResult, RawDecoderFacility, RawEventStreamDecoderFacility,
 };
-use crate::types::{EventCD, EventExtTrigger, EventTimestamp};
+use crate::types::{EventCD, EventExtTrigger, EventTimestamp, Polarity};
 
 /// Decoder for EVT2 raw event streams.
 pub struct Evt2Decoder {
@@ -98,7 +98,7 @@ impl Evt2Decoder {
         match evt_type {
             0x0 | 0x1 => {
                 // 0x0 = CD_OFF (polarity 0), 0x1 = CD_ON (polarity 1)
-                let p = evt_type == 0x1;
+                let p = Polarity::from(evt_type == 0x1);
                 let time_low = (word >> 22) & Self::TIME_LOW_MASK;
                 let x = (word >> 11) & Self::X_MASK;
                 let y = word & Self::Y_MASK;
@@ -117,7 +117,7 @@ impl Evt2Decoder {
                 // 0xA = EXT_TRIGGER
                 let time_low = (word >> 22) & Self::TIME_LOW_MASK;
                 let id = (word >> 8) & Self::TRIGGER_ID_MASK;
-                let value = (word & 0x01) == 1;
+                let value = Polarity::from((word & 0x01) == 1);
                 let t = self.current_timestamp(time_low);
 
                 self.ext_trigger_buffer
@@ -136,15 +136,18 @@ impl Evt2Decoder {
     }
 
     /// Dispatches buffered CD and external-trigger events.
+    ///
+    /// Subscribers receive borrowed slices and must copy anything they keep, so
+    /// the decoder retains its buffers and their capacity between dispatches.
     fn dispatch(&mut self) {
         if !self.cd_buffer.is_empty() {
-            let populated_buffer = std::mem::take(&mut self.cd_buffer);
-            self.evt_dispatcher.send_cd(&populated_buffer);
+            self.evt_dispatcher.send_cd(&self.cd_buffer);
+            self.cd_buffer.clear();
         }
 
         if !self.ext_trigger_buffer.is_empty() {
-            let populated_buffer = std::mem::take(&mut self.ext_trigger_buffer);
-            self.evt_dispatcher.send_ext(&populated_buffer);
+            self.evt_dispatcher.send_ext(&self.ext_trigger_buffer);
+            self.ext_trigger_buffer.clear();
         }
     }
 }

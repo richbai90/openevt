@@ -151,7 +151,7 @@ impl EvtTransformer for IntegralImageTransformer {
     fn transform_events<'a>(&self, events: Box<dyn Iterator<Item = EventCD> + 'a>) -> Self::Output {
         let mut image = IntegralImage::new(self.width, self.height);
         for evt in events {
-            image.add(evt.x, evt.y, evt.p);
+            image.add(evt.x, evt.y, evt.p.into());
         }
         image.integrate();
         image
@@ -163,7 +163,7 @@ mod tests {
     use super::*;
 
     fn event(x: EventCoordinate, y: EventCoordinate, p: bool, t: EventCoordinate) -> EventCD {
-        EventCD::new(x, y, p, t)
+        EventCD::new(x, y, crate::types::Polarity::from(p), t)
     }
 
     #[test]

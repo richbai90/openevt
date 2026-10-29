@@ -23,8 +23,8 @@ impl EvtProcessor for TrailFilter {
         events: Box<dyn Iterator<Item = crate::types::EventCD> + 'a>,
     ) -> Box<dyn Iterator<Item = crate::types::EventCD> + 'a> {
         Box::new(events.filter(move |evt| {
-            let same_pol_t = self.surface.get(evt.x, evt.y, evt.p);
-            let opp_pol_t = self.surface.get(evt.x, evt.y, !evt.p);
+            let same_pol_t = self.surface.get(evt.x, evt.y, evt.p.into());
+            let opp_pol_t = self.surface.get(evt.x, evt.y, (!evt.p).into());
 
             let pol_change = opp_pol_t > same_pol_t;
             let time_elapsed = same_pol_t == 0 || evt.t.saturating_sub(same_pol_t) >= self.dt;
@@ -32,7 +32,7 @@ impl EvtProcessor for TrailFilter {
             let valid = pol_change || time_elapsed;
 
             if valid {
-                self.surface.update(evt.x, evt.y, evt.p, evt.t);
+                self.surface.update(evt.x, evt.y, evt.p.into(), evt.t);
             }
 
             valid
@@ -49,7 +49,7 @@ mod tests {
     };
 
     fn event(p: bool, t: EventTimestamp) -> EventCD {
-        EventCD::new(0, 0, p, t)
+        EventCD::new(0, 0, crate::types::Polarity::from(p), t)
     }
 
     #[test]

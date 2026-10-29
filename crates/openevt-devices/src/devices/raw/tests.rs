@@ -8,7 +8,7 @@ use openevt_core::hal::facilities::{
     EventSubscriptionFacilityHandle, FacilityError, FacilityType,
     RawEventStreamDecoderFacilityHandle, RawEventStreamFacilityHandle,
 };
-use openevt_core::types::EventCD;
+use openevt_core::types::{EventCD, Polarity};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -72,7 +72,7 @@ fn test_read_and_decode_raw_evt3() -> TestResult {
 
     loop {
         match stream.wait_next_buffer() {
-            Ok((buffer, size)) => {
+            Ok(Some((buffer, size))) => {
                 chunks_processed += 1;
                 total_bytes_read += size;
                 decoder.decode(&buffer)?;
@@ -83,7 +83,7 @@ fn test_read_and_decode_raw_evt3() -> TestResult {
                     }
                 }
             }
-            Err(FacilityError::Stream(StreamError::EndOfFile)) => {
+            Ok(None) => {
                 break;
             }
             Err(e) => {
@@ -185,18 +185,12 @@ fn stream_requires_start_and_reports_eof_until_repositioned() -> TestResult {
         Err(FacilityError::Stream(StreamError::Disconnected))
     ));
     stream.start()?;
-    assert_eq!(stream.poll_buffer()?.1, 2);
-    assert_eq!(stream.poll_buffer()?.1, 1);
-    assert!(matches!(
-        stream.poll_buffer(),
-        Err(FacilityError::Stream(StreamError::EndOfFile))
-    ));
-    assert!(matches!(
-        stream.wait_next_buffer(),
-        Err(FacilityError::Stream(StreamError::EndOfFile))
-    ));
+    assert_eq!(stream.poll_buffer()?.unwrap().1, 2);
+    assert_eq!(stream.poll_buffer()?.unwrap().1, 1);
+    assert!(stream.poll_buffer()?.is_none());
+    assert!(stream.wait_next_buffer()?.is_none());
     stream.seek_to_offset(0)?;
-    assert_eq!(stream.poll_buffer()?.0, &[10, 20]);
+    assert_eq!(stream.poll_buffer()?.unwrap().0, &[10, 20]);
     stream.stop()?;
     assert!(matches!(
         stream.poll_buffer(),
@@ -214,19 +208,19 @@ fn sync_iterator_caps_batches_and_preserves_leftovers() -> TestResult {
         EventCD {
             x: 1,
             y: 2,
-            p: true,
+            p: Polarity::Positive,
             t: 10,
         },
         EventCD {
             x: 3,
             y: 4,
-            p: false,
+            p: Polarity::Negative,
             t: 11,
         },
         EventCD {
             x: 5,
             y: 6,
-            p: true,
+            p: Polarity::Positive,
             t: 12,
         },
     ];
@@ -253,9 +247,9 @@ fn sync_iterator_caps_batches_and_preserves_leftovers() -> TestResult {
         super::iterator::EventWindowIterator::<2>::new(receiver, (720, 1280), stream, decoder)
             .into_async();
 
-    assert_eq!(iter.next_batch()?.len(), 2);
-    assert_eq!(iter.next_batch()?.len(), 1);
-    assert!(iter.next_batch()?.is_empty());
+    assert_eq!(iter.next_batch()?.expect("first batch").len(), 2);
+    assert_eq!(iter.next_batch()?.expect("second batch").len(), 1);
+    assert!(iter.next_batch()?.is_none());
     Ok(())
 }
 
@@ -301,7 +295,8 @@ fn test_raw_file_reader_load_batch_publishes_cd_events() -> TestResult {
     )?;
     let receiver = reader.cd_receiver()?;
 
-    reader.load_batch()?;
+    let received = reader.load_batch()?;
+    assert!(received.is_some(), "First load_batch must not hit EOF");
 
     let mut event_count = 0;
     while let Ok(batch) = receiver.try_recv() {
@@ -323,7 +318,7 @@ fn test_sync_event_window_iterator_loads_batches_on_demand() -> TestResult {
         false,
     )?;
     let mut windows = reader.as_windows()?.into_sync();
-    let batch = windows.next_batch()?;
+    let batch = windows.next_batch()?.expect("first batch");
 
     assert_eq!(batch.len(), 4_096);
     Ok(())
@@ -339,7 +334,7 @@ fn test_sync_event_window_iterator_slices_delta_windows() -> TestResult {
         false,
     )?;
     let mut windows = reader.as_windows()?.into_sync();
-    let events = windows.next_delta(10_000)?;
+    let events = windows.next_delta(10_000)?.expect("delta window");
 
     assert!(!events.is_empty());
     assert!(events.iter().all(|event| event.t < 10_000));
@@ -356,8 +351,26 @@ fn test_sync_event_window_iterator_returns_partial_window_at_eof() -> TestResult
         false,
     )?;
     let mut windows = reader.as_windows()?.into_sync();
-    let events = windows.next_delta(1_000_000_000)?;
+    let events = windows.next_delta(1_000_000_000)?.expect("partial window");
 
     assert!(!events.is_empty());
+    Ok(())
+}
+
+#[test]
+fn sync_iterator_reports_none_once_the_stream_is_exhausted() -> TestResult {
+    let file_path = sample_raw_path();
+    let mut reader = RawFileReader::<4_096>::try_from_file(
+        file_path
+            .to_str()
+            .expect("A cargo manifest dir must be specified."),
+        false,
+    )?;
+    let mut windows = reader.as_windows()?.into_sync();
+
+    while windows.next_batch()?.is_some() {}
+
+    assert!(windows.next_batch()?.is_none());
+    assert!(windows.next_delta(10_000)?.is_none());
     Ok(())
 }

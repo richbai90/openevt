@@ -29,6 +29,35 @@ impl<const N: usize> RawEventStream<N> {
         }
     }
 
+    /// Reads the next buffer into internal storage and returns the valid bytes.
+    ///
+    /// Unlike the facility `poll_buffer`, this borrows from the stream instead
+    /// of allocating a fresh `Vec` per call, so decoders can consume the bytes
+    /// in place. The returned slice is valid until the next read.
+    ///
+    /// `Ok(None)` means the file reached its end; `Err` is reserved for real
+    /// failures.
+    pub(crate) fn fill_buffer(&mut self) -> FacilityResult<Option<&[u8]>> {
+        if !self.started {
+            return Err(FacilityError::Stream(StreamError::Disconnected));
+        }
+        if self.eof {
+            return Ok(None);
+        }
+
+        match self.file.read(&mut self.buffer) {
+            Ok(0) => {
+                self.eof = true;
+                Ok(None)
+            }
+            Ok(bytes_read) => Ok(Some(&self.buffer[..bytes_read])),
+            Err(err) => {
+                self.eof = true;
+                Err(FacilityError::Stream(StreamError::IoError(err)))
+            }
+        }
+    }
+
     /// Seeks the underlying file to a byte offset and clears EOF state.
     pub(crate) fn seek_to_offset(&mut self, byte_offset: u64) -> Result<(), std::io::Error> {
         self.file.seek(SeekFrom::Start(byte_offset))?;
@@ -51,7 +80,9 @@ impl<const N: usize> RawEventStreamFacility for RawEventStream<N> {
     }
 
     /// Polls the next buffer if the stream has started.
-    fn poll_buffer(&mut self) -> FacilityResult<openevt_core::hal::facilities::StreamBuffer> {
+    fn poll_buffer(
+        &mut self,
+    ) -> FacilityResult<Option<openevt_core::hal::facilities::StreamBuffer>> {
         if !self.started {
             return Err(FacilityError::Stream(StreamError::Disconnected));
         }
@@ -59,17 +90,24 @@ impl<const N: usize> RawEventStreamFacility for RawEventStream<N> {
     }
 
     /// Reads the next buffer from disk, blocking on I/O as needed.
-    fn wait_next_buffer(&mut self) -> FacilityResult<openevt_core::hal::facilities::StreamBuffer> {
+    ///
+    /// `Ok(None)` means the file reached its end.
+    fn wait_next_buffer(
+        &mut self,
+    ) -> FacilityResult<Option<openevt_core::hal::facilities::StreamBuffer>> {
         if self.eof {
-            return Err(FacilityError::Stream(StreamError::EndOfFile));
+            return Ok(None);
         }
 
         match self.file.read(&mut self.buffer) {
             Ok(0) => {
                 self.eof = true;
-                Err(FacilityError::Stream(StreamError::EndOfFile))
+                Ok(None)
             }
-            Ok(bytes_read) => Ok((self.buffer[..bytes_read].to_vec(), bytes_read as u64)),
+            Ok(bytes_read) => Ok(Some((
+                self.buffer[..bytes_read].to_vec(),
+                bytes_read as u64,
+            ))),
             Err(err) => {
                 self.eof = true;
                 Err(FacilityError::Stream(StreamError::IoError(err)))

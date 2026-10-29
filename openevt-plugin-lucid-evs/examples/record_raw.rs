@@ -19,7 +19,7 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use abi_stable::std_types::{RResult, RVec};
+use abi_stable::std_types::{ROption, RResult, RVec};
 use openevt_abi::discovery::PluginRegistry;
 use openevt_abi::plugin::{
     PluginConfiguration, PluginFacilityHandle, PluginFacilityType, PluginStreamBuffer,
@@ -158,7 +158,11 @@ fn main() -> Result<(), String> {
     eprintln!("recording {} s to {}", args.seconds, args.out.display());
     while Instant::now() < deadline {
         let PluginStreamBuffer { data, valid_len } = match stream.wait_next_buffer() {
-            RResult::ROk(buffer) => buffer,
+            RResult::ROk(ROption::RSome(buffer)) => buffer,
+            RResult::ROk(ROption::RNone) => {
+                eprintln!("stream ended");
+                break;
+            }
             RResult::RErr(error) => {
                 eprintln!("stream ended: {error}");
                 break;

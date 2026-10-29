@@ -1,8 +1,7 @@
 //! Probe: load device plugins from OPENEVT_PLUGIN_PATH and report why
 //! opening a raw EVT3 file fails, surfacing the error the Python layer swallows.
 
-use openevt::hal::device::discovery::PluginRegistry;
-use openevt::RawFilePlugin;
+use openevt::PluginRegistry;
 
 fn main() {
     let path = std::env::args().nth(1).expect("usage: probe_plugins <file.raw>");
@@ -27,11 +26,6 @@ fn main() {
 
     for device in registry.list_devices() {
         println!("discovered: {device:?}");
-    }
-
-    match RawFilePlugin::open(&path) {
-        Ok(_) => println!("RawFilePlugin::open OK"),
-        Err(error) => println!("RawFilePlugin::open FAILED: {error}"),
     }
 
     match registry.open_device(&path) {

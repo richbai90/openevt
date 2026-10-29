@@ -542,9 +542,15 @@ pub trait RawEventStreamFacility: BaseFacility {
     /// Stops delivery from the underlying raw source.
     fn stop(&mut self) -> FacilityResult<()>;
     /// Polls for the next buffer without requiring a blocking wait.
-    fn poll_buffer(&mut self) -> FacilityResult<StreamBuffer>;
+    ///
+    /// `Ok(None)` means the stream reached its end. `Err` is reserved for
+    /// real failures, never for end of stream.
+    fn poll_buffer(&mut self) -> FacilityResult<Option<StreamBuffer>>;
     /// Waits for and returns the next raw buffer.
-    fn wait_next_buffer(&mut self) -> FacilityResult<StreamBuffer>;
+    ///
+    /// `Ok(None)` means the stream reached its end. `Err` is reserved for
+    /// real failures, never for end of stream.
+    fn wait_next_buffer(&mut self) -> FacilityResult<Option<StreamBuffer>>;
 }
 
 /// Decodes raw stream buffers into typed events.

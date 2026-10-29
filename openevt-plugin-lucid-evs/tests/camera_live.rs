@@ -148,7 +148,8 @@ mod tests {
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
             let PluginStreamBuffer { data, valid_len } = match stream.wait_next_buffer() {
-                RResult::ROk(buffer) => buffer,
+                RResult::ROk(ROption::RSome(buffer)) => buffer,
+                RResult::ROk(ROption::RNone) => break,
                 RResult::RErr(error) => panic!("raw stream failed: {error}"),
             };
             buffers.fetch_add(1, Ordering::Relaxed);

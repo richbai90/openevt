@@ -29,7 +29,7 @@ mod tests {
     use super::*;
 
     fn event(x: EventCoordinate, y: EventCoordinate) -> EventCD {
-        EventCD::new(x, y, true, x + y)
+        EventCD::new(x, y, crate::types::Polarity::Positive, x + y)
     }
 
     #[test]

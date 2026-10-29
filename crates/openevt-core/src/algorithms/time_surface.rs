@@ -154,7 +154,7 @@ impl EvtTransformer for BaseTimeSurfaceTransformer {
     fn transform_events<'a>(&self, events: Box<dyn Iterator<Item = EventCD> + 'a>) -> Self::Output {
         let mut surface = BaseTimeSurface::new(self.width, self.height);
         for evt in events {
-            surface.update(evt.x, evt.y, evt.p, evt.t);
+            surface.update(evt.x, evt.y, evt.p.into(), evt.t);
         }
         surface
     }
@@ -186,7 +186,7 @@ impl EvtTransformer for LinearDecayTimeSurfaceTransformer {
     fn transform_events<'a>(&self, events: Box<dyn Iterator<Item = EventCD> + 'a>) -> Self::Output {
         let mut surface = LinearDecayTimeSurface::new(self.width, self.height, self.decay_time);
         for evt in events {
-            surface.update(evt.x, evt.y, evt.p, evt.t);
+            surface.update(evt.x, evt.y, evt.p.into(), evt.t);
         }
         surface
     }
@@ -285,7 +285,7 @@ impl EvtTransformer for ExponentialDecayTimeSurfaceTransformer {
     fn transform_events<'a>(&self, events: Box<dyn Iterator<Item = EventCD> + 'a>) -> Self::Output {
         let mut surface = ExponentialDecayTimeSurface::new(self.width, self.height, self.tau);
         for evt in events {
-            surface.update(evt.x, evt.y, evt.p, evt.t);
+            surface.update(evt.x, evt.y, evt.p.into(), evt.t);
         }
         surface
     }
@@ -303,7 +303,7 @@ mod tests {
     }
 
     fn event(x: EventCoordinate, y: EventCoordinate, p: bool, t: EventTimestamp) -> EventCD {
-        EventCD::new(x, y, p, t)
+        EventCD::new(x, y, crate::types::Polarity::from(p), t)
     }
 
     #[test]

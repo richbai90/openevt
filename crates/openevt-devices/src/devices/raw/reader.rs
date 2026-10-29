@@ -229,7 +229,10 @@ impl<const BUFFER_SIZE: usize> RawFileReader<BUFFER_SIZE> {
     pub fn seek_to_next_ext(&mut self) -> Result<(), DeviceFileError> {
         let recv = self.ext_receiver()?;
         loop {
-            self.load_batch()?;
+            match self.load_batch()? {
+                Some(()) => {}
+                None => return Err(DeviceFileError::EOF()),
+            }
             match recv.try_recv() {
                 Ok(evts) if !evts.is_empty() => return self.seek(evts[0].t),
                 Ok(_) => continue,
@@ -292,7 +295,9 @@ impl<const BUFFER_SIZE: usize> RawFileReader<BUFFER_SIZE> {
     }
 
     /// Loads one raw buffer from the stream and decodes it immediately.
-    pub fn load_batch(&mut self) -> Result<(), DeviceFileError> {
+    ///
+    /// `Ok(None)` means the stream reached its end.
+    pub fn load_batch(&mut self) -> Result<Option<()>, DeviceFileError> {
         let stream_handle = self.get_stream_handle()?;
         let decoder_handle = self.get_decoder_handle()?;
         let mut stream_facility = stream_handle
@@ -306,9 +311,13 @@ impl<const BUFFER_SIZE: usize> RawFileReader<BUFFER_SIZE> {
             .map_err(|_| DeviceFileError::LockError)?;
 
         let stream = crate::facility_downcast_mut!(stream_facility, RawEventStream<BUFFER_SIZE>)?;
-        let (buffer, _) = stream.poll_buffer()?;
-        decoder_facility.decode(&buffer)?;
-        Ok(())
+        match stream.fill_buffer()? {
+            Some(buffer) => {
+                decoder_facility.decode(buffer)?;
+                Ok(Some(()))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Creates an unconfigured iterator over decoded CD event windows.

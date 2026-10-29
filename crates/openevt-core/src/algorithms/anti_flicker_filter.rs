@@ -110,8 +110,8 @@ impl AntiFlickerFilter {
 
     fn process_event(&mut self, evt: &EventCD) -> bool {
         let px_idx = self.get_pixel_index(evt.x, evt.y);
-        let prev_same_t = self.surface.get(evt.x, evt.y, evt.p);
-        let prev_opp_t = self.surface.get(evt.x, evt.y, !evt.p);
+        let prev_same_t = self.surface.get(evt.x, evt.y, evt.p.into());
+        let prev_opp_t = self.surface.get(evt.x, evt.y, (!evt.p).into());
 
         let mut forward = true;
         let is_alternating = prev_same_t > 0 && prev_opp_t > prev_same_t && evt.t > prev_same_t;
@@ -131,7 +131,7 @@ impl AntiFlickerFilter {
             self.reset_frequency_samples(px_idx);
         }
 
-        self.surface.update(evt.x, evt.y, evt.p, evt.t);
+        self.surface.update(evt.x, evt.y, evt.p.into(), evt.t);
         forward
     }
 }
@@ -151,7 +151,7 @@ mod tests {
     use crate::algorithms::EvtProcessor;
 
     fn event(p: bool, t: EventTimestamp) -> EventCD {
-        EventCD::new(0, 0, p, t)
+        EventCD::new(0, 0, crate::types::Polarity::from(p), t)
     }
 
     #[test]

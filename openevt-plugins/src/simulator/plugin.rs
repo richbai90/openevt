@@ -22,7 +22,7 @@ use openevt_abi::plugin::{
     PluginRawEventStreamFacility, PluginRawEventStreamFacility_TO, PluginSeekFacility,
     PluginSeekFacility_TO, PluginStreamBuffer,
 };
-use openevt_core::types::{EventCD, EventTimestamp};
+use openevt_core::types::{EventCD, EventTimestamp, Polarity};
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{RecvTimeoutError, sync_channel};
@@ -319,7 +319,7 @@ impl VideoSimulator {
                 EventCD {
                     x: (pixel_index % self.width) as u64,
                     y: (pixel_index / self.width) as u64,
-                    p: event.polarity,
+                    p: Polarity::from(event.polarity),
                     t: event.timestamp.max(0.0) as EventTimestamp,
                 }
             })
@@ -457,7 +457,11 @@ impl SimulatorState {
     }
 
     #[hotpath::measure]
-    fn advance(state: &Arc<hotpath::wrap::std::sync::Mutex<Self>>) -> Result<(), String> {
+    /// Advances the simulator by one batch.
+    ///
+    /// `Ok(true)` means a batch was dispatched, `Ok(false)` means the video
+    /// ended, and `Err` reports a real failure.
+    fn advance(state: &Arc<hotpath::wrap::std::sync::Mutex<Self>>) -> Result<bool, String> {
         let message = {
             let lock = state
                 .lock()
@@ -486,7 +490,7 @@ impl SimulatorState {
 
         let events = match message {
             WorkerMessage::Events(events) => events,
-            WorkerMessage::End => return Err("end of simulator video".to_owned()),
+            WorkerMessage::End => return Ok(false),
             WorkerMessage::Error(error) => return Err(error),
         };
 
@@ -512,7 +516,7 @@ impl SimulatorState {
             .map_err(|_| "simulator state lock was poisoned".to_owned())?;
         lock.cd_sinks.append(&mut cd_sinks);
         lock.ext_sinks.append(&mut ext_sinks);
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -570,12 +574,13 @@ impl PluginSeekFacility for SimulatorSeekFacility {
 }
 
 impl SimulatorStreamFacility {
-    fn request(&mut self) -> RResult<PluginStreamBuffer, RString> {
+    fn request(&mut self) -> RResult<ROption<PluginStreamBuffer>, RString> {
         match SimulatorState::advance(&self.state) {
-            Ok(()) => RResult::ROk(PluginStreamBuffer {
+            Ok(true) => RResult::ROk(ROption::RSome(PluginStreamBuffer {
                 data: Vec::new().into(),
                 valid_len: 0,
-            }),
+            })),
+            Ok(false) => RResult::ROk(ROption::RNone),
             Err(error) => RResult::RErr(error.into()),
         }
     }
@@ -604,11 +609,11 @@ impl PluginRawEventStreamFacility for SimulatorStreamFacility {
         }
     }
 
-    fn poll_buffer(&mut self) -> RResult<PluginStreamBuffer, RString> {
+    fn poll_buffer(&mut self) -> RResult<ROption<PluginStreamBuffer>, RString> {
         self.request()
     }
 
-    fn wait_next_buffer(&mut self) -> RResult<PluginStreamBuffer, RString> {
+    fn wait_next_buffer(&mut self) -> RResult<ROption<PluginStreamBuffer>, RString> {
         self.request()
     }
 }
@@ -915,9 +920,10 @@ impl plugin::DevicePlugin for SimulatorDevice {
         }
     }
 
-    fn load_batch(&mut self) -> RResult<(), RString> {
+    fn load_batch(&mut self) -> RResult<ROption<()>, RString> {
         match SimulatorState::advance(&self.state) {
-            Ok(()) => RResult::ROk(()),
+            Ok(true) => RResult::ROk(ROption::RSome(())),
+            Ok(false) => RResult::ROk(ROption::RNone),
             Err(error) => RResult::RErr(error.into()),
         }
     }
@@ -1105,7 +1111,7 @@ mod tests {
         for _ in 0..FRAMES_TO_CHECK {
             let result = device.load_batch();
             assert!(
-                matches!(result, RResult::ROk(())),
+                matches!(result, RResult::ROk(ROption::RSome(()))),
                 "load batch failed: {result:?}"
             );
         }

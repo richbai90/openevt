@@ -25,6 +25,7 @@ log = "0.4.29"
 paste = "1.0.15"
 slotmap = "1.1.1"
 thiserror = "2.0.18"
+zerocopy = { version = "0.8", features = ["derive"] }
 
 [lib]
 name = "openevt_core"
