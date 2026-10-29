@@ -27,11 +27,16 @@ impl Header {
                 break;
             }
 
-            let mut line = String::new();
-            reader.read_line(&mut line)?;
-
+            // Binary payloads can begin with a byte that looks like a header
+            // line ('%' = 0x25), so read the raw bytes and decode lossily
+            // instead of requiring valid UTF-8.
+            let mut raw_line = Vec::new();
+            reader.read_until(b'\n', &mut raw_line)?;
+            let line = String::from_utf8_lossy(&raw_line);
             let line = line.trim();
+
             if let Some(rest) = line.strip_prefix('%') {
+                let is_end_marker = rest.trim() == "end";
                 let parts: Vec<&str> = rest.splitn(2, ':').collect();
                 if parts.len() == 2 {
                     metadata.insert(parts[0].trim().to_string(), parts[1].trim().to_string());
@@ -40,6 +45,11 @@ impl Header {
                     if parts.len() >= 2 {
                         metadata.insert(parts[0].to_string(), parts[1..].join(" "));
                     }
+                }
+                // "% end" terminates the header even when the payload that
+                // follows starts with a '%' byte.
+                if is_end_marker {
+                    break;
                 }
             }
         }
@@ -217,5 +227,36 @@ mod tests {
         assert_eq!(info.name, "UNKNOWN");
         assert_eq!(info.integrator, "UNKNOWN");
         assert_eq!(info.version, "x.x");
+    }
+
+    #[test]
+    fn stops_after_the_end_marker_line() {
+        // Prophesee raw headers terminate with "% end"; binary payloads may
+        // begin with a byte that looks like a header line ('%' = 0x25).
+        // The parser must stop at the marker and leave the payload unread.
+        let payload: &[u8] = &[b'%', 0x8e, 0xff, 0xe0, 0x10, 0x6e];
+        let input = [b"%Data format: EVT3; 640; 480\n% end\n".as_slice(), payload].concat();
+        let mut reader = Cursor::new(input);
+
+        let header = Header::parse(&mut reader).unwrap();
+
+        assert_eq!((header.width, header.height), (640, 480));
+        assert_eq!(reader.position(), b"%Data format: EVT3; 640; 480\n% end\n".len() as u64);
+        let position = reader.position().try_into().unwrap();
+        assert_eq!(&reader.get_ref()[position..], payload);
+    }
+
+    #[test]
+    fn tolerates_non_utf8_bytes_in_a_stray_header_line() {
+        // Without an "% end" marker, a payload beginning with '%' must not
+        // abort parsing with a UTF-8 error; bytes are decoded lossily.
+        let input: &[u8] = b"%Geometry: 2,3\n%\x8e\xff\xe0\x10\n\x01\x02";
+        let mut reader = Cursor::new(input.to_vec());
+
+        let header = Header::parse(&mut reader).unwrap_or_else(|error| {
+            panic!("stray non-UTF-8 line after the header should not fail: {error:?}")
+        });
+
+        assert_eq!((header.width, header.height), (2, 3));
     }
 }
