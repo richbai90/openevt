@@ -1,6 +1,6 @@
 """Type stubs for the openevt event-camera extension module."""
 
-from typing import Any, AsyncIterator, Awaitable, Iterator, Optional, Tuple, final
+from typing import Any, AsyncIterator, Awaitable, Iterator, NoReturn, Optional, Tuple, final
 
 import numpy.typing as npt
 
@@ -72,8 +72,12 @@ PyEventCD = EventCD
 
 @final
 class CDEventReceiver:
-    """Receives decoded change-detection event batches from a device."""
+    """Receives decoded change-detection event batches from a device.
 
+    Instances are created only by ``RawFileReader.cd_receiver()``.
+    """
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> NoReturn: ...
     def try_recv(self) -> Optional[npt.NDArray[Any]]:
         """Receive one already-decoded batch without waiting."""
         ...
@@ -88,8 +92,11 @@ class CDEventIterator:
 
     Each batch is a structured NumPy array with fields ``(x, y, p, t)``
     and item size 32.
+
+    Instances are created only by ``RawFileReader.iter()``.
     """
 
+    def __new__(cls, *args: Any, **kwargs: Any) -> NoReturn: ...
     def __iter__(self) -> CDEventIterator: ...
     def __next__(self) -> npt.NDArray[Any]: ...
     def next_batch(self) -> Optional[npt.NDArray[Any]]: ...
@@ -104,8 +111,12 @@ class CDEventIterator:
 
 @final
 class AsyncCDEventIterator:
-    """Asynchronous iterator over decoded event batches."""
+    """Asynchronous iterator over decoded event batches.
 
+    Instances are created only by ``RawFileReader.aiter()``.
+    """
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> NoReturn: ...
     def __aiter__(self) -> AsyncCDEventIterator: ...
     def __anext__(self) -> Awaitable[npt.NDArray[Any]]: ...
     def next_batch(self) -> Awaitable[npt.NDArray[Any]]: ...
