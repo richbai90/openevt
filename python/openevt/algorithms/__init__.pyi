@@ -1,6 +1,6 @@
 """Event-to-frame algorithms: filters, time surfaces, and accumulators."""
 
-from typing import Any, final
+from typing import Any, NoReturn, final
 
 import numpy as np
 import numpy.typing as npt
@@ -43,8 +43,12 @@ class Tensor:
     ``to_numpy()`` returns a NumPy array of shape ``(channels, height,
     width)``, where channel 0 is positive polarity and channel 1 is
     negative polarity in dual-channel mode.
+
+    Instances are created only by ``to_tensor()`` on the accumulator
+    classes below.
     """
 
+    def __new__(cls, *args: Any, **kwargs: Any) -> NoReturn: ...
     def width(self) -> int: ...
     def height(self) -> int: ...
     def channels(self) -> int: ...
