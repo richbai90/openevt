@@ -9,11 +9,13 @@ device support and the frame-generation plugin ABI are optional:
 
 ```toml
 [dependencies]
-openevt = { version = "1.0.4", features = ["devices"] }
+openevt = { version = "1.0.5", features = ["devices"] }
 ```
 
-The `all` feature enables every optional component and is the default feature.
-Use `default-features = false` for a core-only build.
+The `all` feature enables `devices`, `framegen`, `plugins`, `evt3`, and
+`decoder`, and is the default. It excludes `python`; request that feature
+explicitly for a bindings build. Use `default-features = false` for a
+core-only build.
 
 ## Documentation
 
@@ -30,7 +32,9 @@ OpenEVT supports two plugin families:
   events and render RGBA frames.
 
 The repository includes a [raw-file plugin reference](docs/raw-file-plugin.md)
-and a [video simulator plugin](docs/simulator-plugin.md). See the
+and a [video simulator plugin](docs/simulator-plugin.md). The
+[Python bindings guide](docs/python-bindings.md) covers the typed wheel, the
+plugin-backed reader, and end-of-file behavior. See the
 [development workflow](docs/development-workflow.md) for build, discovery,
 testing, and troubleshooting commands.
 
@@ -39,25 +43,30 @@ testing, and troubleshooting commands.
 ```text
 .
 ├── Cargo.toml
-├── docs/        # Plugin development and architecture guides
+├── docs/                      # Plugin development and architecture guides
 ├── crates/
-│   ├── openevt-core/    # types, HAL traits/facilities, decoders, algorithms
-│   ├── openevt-devices/ # file-backed raw event device
-│   ├── openevt-abi/     # stable plugin ABI, registry, host adapters, framegen
-│   └── openevt-py/      # PyO3 bindings (python feature)
-└── src/             # facade crate re-exporting the workspace crates
+│   ├── openevt-core/          # types, HAL traits/facilities, decoders, algorithms
+│   ├── openevt-devices/       # file-backed raw event device
+│   ├── openevt-abi/           # stable plugin ABI, registry, host adapters, framegen
+│   └── openevt-py/            # PyO3 bindings (python feature)
+├── openevt-plugins/           # raw-file replay and video simulator plugins
+├── openevt-plugin-lucid-evs/  # Lucid Triton EVS network device plugin
+├── python/openevt/            # Python package with type stubs and py.typed
+├── examples/                  # probe_plugins host example
+├── src/                       # facade crate re-exporting the workspace crates
+└── tests/                     # integration tests, including Python bindings
 ```
 
-Enable the frame-generation API with `features = ["framegen"]`. It is also
-included by the default `all` feature.
+Enable the frame-generation API with `features = ["framegen"]`. The default
+`all` feature also includes it.
 
 The primary modules are:
 
 - `openevt-core` contains event types, decoder and device traits, facilities,
   dispatchers, buffers, and algorithms.
 - `openevt-devices` contains raw-file header parsing, indexing,
-  stream/decoder wiring, and reader/iterator APIs. Its main types are also
-  re-exported at the crate root when the `devices` feature is enabled.
+  stream/decoder wiring, and reader/iterator APIs. The crate root also
+  re-exports its main types when the `devices` feature is enabled.
 - `openevt-abi` hosts the stable plugin ABI, plugin registry/loading, and the
   host-side plugin adapters, including the frame-generation contract.
 - `openevt-py` hosts the PyO3 bindings, gated behind the `python` feature.
@@ -72,12 +81,12 @@ The video simulator is documented in the [simulator plugin guide](docs/simulator
 Set `OPENEVT_PLUGIN_PATH` to the directory containing the plugin before using a
 host layer or the Python bindings. Raw-file discovery uses `OPENEVT_RAW_FILES`.
 
-EVT3 decoding is currently supported; EVT2, DAT, and HDF5 decoder paths are not
-yet implemented.
+The crate currently supports EVT3 decoding; EVT2, DAT, and HDF5 decoder paths
+remain unimplemented.
 
-The `property!` and `pack_facility!` macros, along with the `new` derive
-re-export, now live directly in the crate. The previous standalone macro and
-procedural-macro packages are no longer needed.
+The `property!` and `pack_facility!` macros and the `new` derive re-export
+live in `openevt-core` and are re-exported at the crate root. Standalone
+macro and procedural-macro packages are obsolete.
 
 ## Runtime flow
 
@@ -93,7 +102,7 @@ procedural-macro packages are no longer needed.
 ```bash
 cargo check                         # default/all features
 cargo check --no-default-features    # core only
-cargo test --all-features
+cargo test --features full
 cargo build --features python       # Python/NumPy bindings; loads raw support as a plugin
 ```
 
@@ -104,13 +113,20 @@ python -m pip install maturin
 maturin build --release
 ```
 
-The resulting wheels are written to `target/wheels/`. Test them in a clean
+Maturin writes the resulting wheels to `target/wheels/`. Test them in a clean
 environment before uploading with `maturin publish` or a PyPI publishing
 tool. The published distribution and importable module are named `openevt`:
 
 ```bash
 python -m pip install openevt
 ```
+
+The wheel ships type stubs and a `py.typed` marker, so type checkers resolve
+the API. The Python `RawFileReader` is plugin-backed: it requires a file path
+(`RawFileReader(path, index=False)`) and a device plugin reachable through
+`OPENEVT_PLUGIN_PATH`. Its batch methods (`next_batch`, `next_n`, `next_delta`)
+return `None` at end of file, and its iterators raise `StopIteration` when
+exhausted.
 
 ## Attribution and independence
 
