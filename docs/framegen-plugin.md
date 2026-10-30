@@ -131,7 +131,7 @@ pub fn instantiate_root_module() -> PluginModuleRef {
 
 The generated `FrameGenerator_TO` type is the ABI-safe trait object. Keep the
 generator `Send + Sync`; the trait contract requires it even though mutation
-is performed through `&mut self`.
+happens through `&mut self`.
 
 ## Rendering contract
 

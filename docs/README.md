@@ -23,9 +23,10 @@ that is especially useful when implementing a new adapter.
 The root `openevt` crate is a facade that re-exports the workspace crates: the
 public HAL and types live in `crates/openevt-core`, the raw-file device in
 `crates/openevt-devices`, and both ABI contracts in `crates/openevt-abi`. The
-`openevt-plugins` crate contains a video-backed simulator and optional Python
-bindings. The raw-file device adapter lives in
-`openevt-plugins/src/raw/plugin.rs`.
+`openevt-plugins` crate ships the standard device plugins — raw-file replay
+and the video simulator — in one library, with optional Python bindings for
+the simulator. The `openevt-plugin-lucid-evs` crate adds a network device
+plugin for LUCID GigE Vision EVT cameras.
 
 The contracts are deliberately small. Keep vendor SDKs, decoders, threads,
 channels, locks, and mutable buffers inside the plugin; only ABI-safe values
@@ -35,4 +36,4 @@ cross the dynamic-library boundary.
 
 Build the plugin and host against compatible versions of `openevt`,
 `abi_stable`, and the Rust ABI definitions. A plugin is not a generic shared
-object: it must export the exact root-module contract expected by the loader.
+object: it must export the exact root-module contract the loader expects.
