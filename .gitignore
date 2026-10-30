@@ -22,6 +22,10 @@ __pycache__/
 **/mutants.out*/
 
 __*
+# maturin drops gitignored files from python-source, so keep the package
+# init files for the openevt stub package.
+!__init__.py
+!__init__.pyi
 
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

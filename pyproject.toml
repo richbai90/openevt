@@ -31,6 +31,8 @@ bindings = "pyo3"
 # `openevt` import name so existing Python users are unaffected.
 module-name = "openevt"
 manifest-dir = "crates/openevt-py"
+# Mixed layout so the type stubs (.pyi) and py.typed marker ship in the wheel.
+python-source = "python"
 features = ["python", "full"]
 strip = true
 exclude = [
