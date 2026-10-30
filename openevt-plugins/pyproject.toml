@@ -12,3 +12,5 @@ requires-python = ">=3.9"
 bindings = "pyo3"
 features = ["python"]
 module-name = "openevt_plugins"
+# Mixed layout so the type stubs (.pyi) and py.typed marker ship in the wheel.
+python-source = "python"
