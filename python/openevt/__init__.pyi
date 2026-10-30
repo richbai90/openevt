@@ -1,30 +1,35 @@
 """Type stubs for the openevt event-camera extension module."""
 
-from typing import Any, AsyncIterator, Awaitable, Iterator, NoReturn, Optional, Tuple, final
+from typing import (Any, AsyncIterator, Awaitable, Iterator, NoReturn,
+                    Optional, Tuple, final)
 
 import numpy.typing as npt
 
 from . import algorithms as algorithms
 from . import filters as filters
-from .algorithms import (
-    ActivityNoiseFilter as ActivityNoiseFilter,
-    AntiFlickerFilter as AntiFlickerFilter,
-    BaseTimeSurface as BaseTimeSurface,
-    BaseTimeSurfaceTransformer as BaseTimeSurfaceTransformer,
-    ExponentialDecayTimeSurface as ExponentialDecayTimeSurface,
-    ExponentialDecayTimeSurfaceTransformer as ExponentialDecayTimeSurfaceTransformer,
-    Histogram as Histogram,
-    HistogramTransformer as HistogramTransformer,
-    IntegralImage as IntegralImage,
-    IntegralImageTransformer as IntegralImageTransformer,
-    LinearDecayTimeSurface as LinearDecayTimeSurface,
-    LinearDecayTimeSurfaceTransformer as LinearDecayTimeSurfaceTransformer,
-    PolarityFilter as PolarityFilter,
-    RoiFilter as RoiFilter,
-    SpatioTemporalContrastFilter as SpatioTemporalContrastFilter,
-    Tensor as Tensor,
-    TrailFilter as TrailFilter,
-)
+from .algorithms import ActivityNoiseFilter as ActivityNoiseFilter
+from .algorithms import AntiFlickerFilter as AntiFlickerFilter
+from .algorithms import BaseTimeSurface as BaseTimeSurface
+from .algorithms import \
+    BaseTimeSurfaceTransformer as BaseTimeSurfaceTransformer
+from .algorithms import \
+    ExponentialDecayTimeSurface as ExponentialDecayTimeSurface
+from .algorithms import \
+    ExponentialDecayTimeSurfaceTransformer as \
+    ExponentialDecayTimeSurfaceTransformer
+from .algorithms import Histogram as Histogram
+from .algorithms import HistogramTransformer as HistogramTransformer
+from .algorithms import IntegralImage as IntegralImage
+from .algorithms import IntegralImageTransformer as IntegralImageTransformer
+from .algorithms import LinearDecayTimeSurface as LinearDecayTimeSurface
+from .algorithms import \
+    LinearDecayTimeSurfaceTransformer as LinearDecayTimeSurfaceTransformer
+from .algorithms import PolarityFilter as PolarityFilter
+from .algorithms import RoiFilter as RoiFilter
+from .algorithms import \
+    SpatioTemporalContrastFilter as SpatioTemporalContrastFilter
+from .algorithms import Tensor as Tensor
+from .algorithms import TrailFilter as TrailFilter
 
 __all__ = [
     "PyEventCD",
@@ -78,7 +83,7 @@ class CDEventReceiver:
     """
 
     def __new__(cls, *args: Any, **kwargs: Any) -> NoReturn: ...
-    def try_recv(self) -> Optional[npt.NDArray[Any]]:
+    def try_recv(self) -> npt.NDArray[Any] | None:
         """Receive one already-decoded batch without waiting."""
         ...
     def __iter__(self) -> Iterator[npt.NDArray[Any]]: ...
@@ -99,11 +104,11 @@ class CDEventIterator:
     def __new__(cls, *args: Any, **kwargs: Any) -> NoReturn: ...
     def __iter__(self) -> CDEventIterator: ...
     def __next__(self) -> npt.NDArray[Any]: ...
-    def next_batch(self) -> Optional[npt.NDArray[Any]]: ...
-    def next_n(self, n: int) -> Optional[npt.NDArray[Any]]:
+    def next_batch(self) -> npt.NDArray[Any] | None: ...
+    def next_n(self, n: int) -> npt.NDArray[Any] | None:
         """Return up to ``n`` events while preserving any remaining events."""
         ...
-    def next_delta(self, dt: int) -> Optional[npt.NDArray[Any]]:
+    def next_delta(self, dt: int) -> npt.NDArray[Any] | None:
         """Return the next time window of events within ``dt`` of the
         current time baseline, or ``None`` at end of stream."""
         ...
@@ -130,12 +135,12 @@ class RawFileReader:
     """
 
     def __new__(
-        cls, path: Optional[str] = None, index: bool = False
+        cls, path: str, index: bool = False
     ) -> RawFileReader: ...
     def try_open(self, file_path: str, index: bool) -> None: ...
     def ready(self) -> bool: ...
-    def t_min(self) -> Optional[int]: ...
-    def t_max(self) -> Optional[int]: ...
+    def t_min(self) -> int | None: ...
+    def t_max(self) -> int | None: ...
     def seek(self, ts: int) -> None: ...
     def seek_to_next_ext(self) -> None: ...
     def load_batch(self) -> None: ...
