@@ -65,6 +65,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "requires a LUCID camera on the local network and a built plugin cdylib"]
     async fn live_camera_streams_cd_events() {
         let plugin_path = locate_plugin_artifact();
         let mut registry = PluginRegistry::new();
