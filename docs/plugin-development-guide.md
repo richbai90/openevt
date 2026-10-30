@@ -1,12 +1,14 @@
 # Developing an OpenEVT Device Plugin
 
-This guide explains how to create a Rust device plugin that can be discovered
-and loaded by the OpenEVT host layer. It is written for developers who know
+This guide explains how to create a Rust device plugin that the OpenEVT host
+layer can discover and load. It is written for developers who know
 basic Rust but may not have written a dynamic library or an FFI
 (foreign-function interface) before.
 
-The guide uses the plugin API in `openevt::hal::device::plugin` and the loading
-API in `openevt::hal::device::discovery::PluginRegistry`.
+The guide uses the plugin API in `openevt_abi::plugin` and the loading API in
+`openevt_abi::discovery::PluginRegistry`. The host facade re-exports the
+registry, plugin box, and device adapter as `openevt::{PluginRegistry,
+DevicePluginBox, PluginDevice}` when the `plugins` feature is enabled.
 
 ## What a Plugin Does
 
@@ -18,7 +20,8 @@ host layer through its public Rust API; they do not implement the ABI boundary.
 The flow is:
 
 1. The host layer loads the plugin library.
-2. The library provides a root module with its name and a discovery factory.
+2. The library exports a root module with its name, a default discovery
+   factory, and one named discovery factory per device.
 3. The discovery object lists available devices and exposes a creation schema.
 4. The host layer exposes the devices and schema to the application.
 5. The application decides how to collect values, such as through a GUI or
@@ -67,7 +70,7 @@ an `RSlice` only while invoking the host-layer callback.
 
 There are two useful layouts.
 
-### Layout a: Add the Device to `openevt-plugins`
+### Layout A: Add the Device to `openevt-plugins`
 
 This is convenient for an adapter that reuses OpenEVT’s existing device code,
 and it is where the standard devices live. Add a module next to `simulator` and
@@ -90,8 +93,8 @@ extern "C" fn create_standard_discoveries() -> RVec<NamedDiscoveryPlugin> {
 cargo build --release -p openevt-plugins
 ```
 
-A shared library can only export one `abi_stable` root module, so devices in
-this crate are *not* exported individually. `create_discoveries` returns one
+A shared library can export only one `abi_stable` root module, so this crate
+does not export devices individually. `create_discoveries` returns one
 [`NamedDiscoveryPlugin`] per device, and the host registers each separately
 while preserving its name and creation schema.
 
@@ -113,11 +116,16 @@ edition = "2024"
 
 [dependencies]
 abi_stable = "0.11.3"
-openevt = { version = "1.0.4", features = ["plugins"] }
+openevt-core = "1.0.5"
+openevt-abi = "1.0.5"
 
 [lib]
 crate-type = ["cdylib"]
 ```
+
+A plugin that reuses the native reader or device code should also depend on the
+facade: `openevt = { version = "1.0.5", default-features = false, features =
+["devices", "plugins"] }`.
 
 In practice, build the plugin against the same OpenEVT plugin API version as
 the host layer. Keep `abi_stable` versions aligned as well. The root module performs
@@ -136,15 +144,15 @@ The following sections build them one at a time.
 
 ## Step 1: Define a Device Type
 
-Start with the state needed to communicate with one device. The serial number
-is required by the API. Other fields are private implementation details.
+Start with the state needed to communicate with one device. The API requires
+the serial number. Other fields are private implementation details.
 
 ```rust
 use abi_stable::std_types::{RResult, RString, RVec};
-use openevt::hal::device::discovery::ConnectionType;
-use openevt::hal::device::plugin::{
+use openevt_abi::plugin::{
     DevicePlugin, EventBatchSinkBox, PluginFacility, PluginFacilityType,
 };
+use openevt_core::hal::device::discovery::ConnectionType;
 
 struct ExampleCamera {
     serial: RString,
@@ -171,7 +179,7 @@ impl ExampleCamera {
 A useful pattern is to keep connection errors as ordinary `Result` values
 inside the implementation and convert them at the ABI boundary. This keeps
 the internal code idiomatic and makes every exported method return the type the
-the host layer expects.
+host layer expects.
 
 ## Step 2: Report Facilities
 
@@ -191,10 +199,10 @@ The ABI knows the complete native facility key set, including:
 - software information, monitoring, hardware registers, and low-level biases;
 - ROI, ROI pixel masks, trigger input, and trigger output.
 
-Only advertise a facility when the plugin really implements it. A raw-file
-plugin, for example, advertises geometry, hardware identification, ROI, event
-stream, event-stream decoder, and event decoder. It does not claim to support
-hardware registers merely because that enum variant exists.
+Only advertise a facility when the plugin implements it. The shipped
+raw-file plugin, for example, advertises `Geometry`, `Index`, `Seek`, and
+`ExternalTriggerSeek`. It does not claim hardware registers or ROI control
+merely because those enum variants exist.
 
 ```rust
 impl DevicePlugin for ExampleCamera {
@@ -224,11 +232,13 @@ impl DevicePlugin for ExampleCamera {
     # fn connection_type(&self) -> ConnectionType { ConnectionType::Usb }
     # fn start_events(&mut self, _sink: EventBatchSinkBox) -> RResult<(), RString> { RResult::ROk(()) }
     # fn start_external_triggers(&mut self, _sink: EventBatchSinkBox) -> RResult<(), RString> { RResult::ROk(()) }
-    # fn load_batch(&mut self) -> RResult<(), RString> { RResult::ROk(()) }
+    # fn load_batch(&mut self) -> RResult<abi_stable::std_types::ROption<()>, RString> {
+    #     RResult::ROk(abi_stable::std_types::ROption::RSome(()))
+    # }
 }
 ```
 
-The `#` lines are hidden by Rust documentation renderers to keep the example
+Rust documentation renderers hide the `#` lines to keep the example
 focused; in a source file, provide all required trait methods normally.
 
 The plugin facility traits mirror the native facility concepts without
@@ -260,15 +270,14 @@ fn get_facility_handle(
 
 The host layer calls the returned type-erased handle through its generated ABI
 vtable; the concrete implementation and all native state remain in the
-plugin. Facilities not yet represented by a plugin trait should not be
-treated as callable merely because their descriptor is advertised.
+plugin. Do not treat facilities not yet represented by a plugin trait
+as callable merely because their descriptor is advertised.
 
-Optional device behavior is also represented as facilities. Plugins can expose
+Plugins also represent optional device behavior as facilities. Plugins can expose
 `PluginIndexFacility` for `t_min`/`t_max`, `PluginSeekFacility` for timestamp
 seeking, and `PluginExternalTriggerSeekFacility` for seeking to the next
-external trigger. A device that does not support one of these capabilities
-simply omits its facility handle; it does not need a placeholder method or a
-`todo!()` implementation.
+external trigger. A device that lacks one of these capabilities omits its
+facility handle; it needs no placeholder method or `todo!()` implementation.
 
 ## Step 3: Declare and Validate Creation Parameters
 
@@ -351,25 +360,36 @@ impl DevicePlugin for ExampleCamera {
         RResult::ROk(())
     }
 
-    fn load_batch(&mut self) -> RResult<(), RString> {
+    fn load_batch(&mut self) -> RResult<abi_stable::std_types::ROption<()>, RString> {
         // Read/decode one unit of work, then invoke the stored sink for every
-        // batch produced by that work.
-        RResult::ROk(())
+        // batch produced by that work. Return ROk(RNone) at end of stream;
+        // reserve RErr for real failures.
+        RResult::ROk(abi_stable::std_types::ROption::RSome(()))
     }
 }
 ```
 
+Most of these methods are deprecated ABI shims kept for older host layers.
+`serial`, `connection_type`, and `geometry` have facility replacements;
+`PluginIndexFacility`, `PluginSeekFacility`, and
+`PluginExternalTriggerSeekFacility` replace `t_min`, `t_max`, `seek`, and
+`seek_to_next_ext`; the event-stream facilities replace `start_events` and
+`load_batch`. New code should implement `get_facility_handle` and put the
+behavior in the facility traits, while still providing the shims so older
+hosts keep working.
+
 ### Pull-Driven Event Delivery
 The current API is pull-driven. The host layer calls `load_batch`, and the plugin
 does the work synchronously. A plugin may use a background thread internally,
-but `load_batch` must still provide a clear synchronization point and should
-return an error if the device is not initialized.
+but `load_batch` must still provide a clear synchronization point. The
+replacement `PluginRawEventStreamFacility` methods `poll_buffer` and
+`wait_next_buffer` return `ROk(RNone)` at end of stream for the same reason.
 
 `start_events` and `start_external_triggers` receive the same kind of callback
-sink. Store it in the device state if events will be delivered later. A simple
+sink. Store it in the device state if you will deliver events later. A simple
 plugin can instead read and decode directly from `load_batch`.
 
-## Step 4: Send Event Batches Safely
+## Step 5: Send Event Batches Safely
 
 The callback methods use borrowed `RSlice` values:
 
@@ -400,14 +420,14 @@ fn drain_cd_batches(&mut self) {
 Do not pass a receiver, mutex, raw pointer, or native `Vec` through the ABI.
 Do not keep an `RSlice` after the callback returns.
 
-## Step 5: Implement Discovery
+## Step 6: Implement Discovery
 
 Discovery is separate from opening a device. It should be cheap and should not
 open every camera just to list it.
 
 ```rust
 use abi_stable::std_types::{RResult, RString, RVec};
-use openevt::hal::device::plugin::{
+use openevt_abi::plugin::{
     DeviceDiscoveryPlugin, DevicePluginBox, PluginCameraDescriptionAbi,
 };
 
@@ -445,19 +465,21 @@ If the serial is unknown or opening fails, return `RResult::RErr` with a useful
 message. The host layer’s registry tries each loaded discovery plugin until one can
 open the requested serial.
 
-## Step 6: Export the Root Module
+## Step 7: Export the Root Module
 
 The root module is the entry point the loader looks for. It provides a plugin
-name and a function that constructs the discovery object.
+name, a default discovery factory, and a factory returning every named
+discovery the library exports.
 
 ```rust
 use abi_stable::{
     prefix_type::PrefixTypeTrait,
-    std_types::RString,
+    std_types::{RString, RVec},
     type_level::downcasting::TD_Opaque,
 };
-use openevt::hal::device::plugin::{
+use openevt_abi::plugin::{
     DeviceDiscoveryPluginBox, DeviceDiscoveryPlugin_TO, DevicePluginModuleRef,
+    DevicePluginModuleVtable, NamedDiscoveryPlugin,
 };
 
 extern "C" fn plugin_name() -> RString {
@@ -468,26 +490,41 @@ extern "C" fn create_discovery() -> DeviceDiscoveryPluginBox {
     DeviceDiscoveryPlugin_TO::from_value(ExampleDiscovery, TD_Opaque)
 }
 
+extern "C" fn create_discoveries() -> RVec<NamedDiscoveryPlugin> {
+    vec![NamedDiscoveryPlugin {
+        name: plugin_name(),
+        discovery: create_discovery(),
+    }]
+    .into()
+}
+
 #[abi_stable::export_root_module]
 pub fn instantiate_root_module() -> DevicePluginModuleRef {
-    openevt::hal::device::plugin::DevicePluginModuleVtable {
+    DevicePluginModuleVtable {
         name: plugin_name,
         create_discovery,
+        create_discoveries,
     }
     .leak_into_prefix()
 }
 ```
 
+A library that ships several devices fills `create_discoveries` with one
+`NamedDiscoveryPlugin` per device and points `create_discovery` at the most
+sensible default, so hosts built against the older two-field vtable keep
+loading the library. See `openevt-plugins/src/module.rs` for a working
+multi-device module.
+
 The function name is conventional, but the `export_root_module` attribute is
-essential. The module’s base name, name, and version are defined by OpenEVT’s
-`DevicePluginModuleRef`; do not invent a different root module contract.
+essential. OpenEVT’s `DevicePluginModuleRef` defines the module’s base name,
+name, and version; do not invent a different root module contract.
 
 ## Building and Loading
 
 Build the plugin in release mode:
 
 ```sh
-cargo build --release --features plugins
+cargo build --release
 ```
 
 On common platforms, the resulting library is under `target/release/`:
@@ -506,13 +543,16 @@ The host layer searches:
 temporary development setup can use a directory containing the built library:
 
 ```sh
-OPENEVT_PLUGIN_PATH="$PWD/target/release" cargo run --example plugin-host
+OPENEVT_PLUGIN_PATH="$PWD/target/release" cargo run --example probe_plugins -- some.raw
 ```
+
+The `probe_plugins` example loads every library on the path, prints the
+devices each one advertises, and reports why `open_device` fails when it does.
 
 The host layer loads plugins through `PluginRegistry`:
 
 ```rust,no_run
-use openevt::hal::device::discovery::PluginRegistry;
+use openevt::PluginRegistry;
 
 let mut registry = PluginRegistry::new();
 let loaded = registry.load_default_paths();
@@ -531,11 +571,16 @@ println!("opened {}", device.serial());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
+`open_device` and `DevicePlugin::serial` are deprecated shims. New host code
+should request the creation schema with `configuration_schema`, build a
+`PluginConfiguration` with `new_configuration`, and call
+`open_device_with_configuration`.
+
 For deterministic tests, load a specific file or directory instead:
 
 ```rust,no_run
 use std::path::Path;
-use openevt::hal::device::discovery::PluginRegistry;
+use openevt::PluginRegistry;
 
 let mut registry = PluginRegistry::new();
 registry.load_file(Path::new("target/release/libexample_camera.so"))?;
@@ -550,8 +595,8 @@ Test the plugin in layers:
 2. Test discovery with fake or recorded device identifiers.
 3. Test `get_facilities` and `get_facility` together so the two methods never
    disagree.
-4. Test errors such as an unknown serial, disconnected camera, and calling
-   `load_batch` before initialization.
+4. Test errors such as an unknown serial, a disconnected camera, and a
+   `load_batch` call before initialization.
 5. Test event callbacks with a counting sink and verify batch counts and event
    counts.
 6. Build the `cdylib` and load it through `PluginRegistry` in an integration
@@ -567,7 +612,7 @@ slice remaining valid.
 
 `get_facilities` is a capability declaration. Returning every value in
 `PluginFacilityType::ALL` claims support for every operation. Return only what
-the device actually implements.
+the device implements.
 
 ### Passing Native Rust Types Through the Boundary
 
@@ -588,7 +633,7 @@ An `rlib` is a Rust library, not a loadable plugin for the registry. Set
 ### Loading the Wrong File
 
 `PluginRegistry::load_directory` skips files whose extension is not `so`,
-`dll`, or `dylib`. Check that the library was built for the host layer’s operating
+`dll`, or `dylib`. Check that you built the library for the host layer’s operating
 system and CPU architecture.
 
 ### ABI or Version Mismatch
@@ -599,7 +644,7 @@ check the exact library path being loaded.
 
 ### Doing Expensive Work in Discovery
 
-`discover` is called to enumerate devices. Avoid opening streams or starting
+The host calls `discover` to enumerate devices. Avoid opening streams or starting
 threads there. Defer connection setup to `open_device`.
 
 ## Recommended Implementation Order

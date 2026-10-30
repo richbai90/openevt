@@ -1,7 +1,7 @@
 # Raw file device plugin
 
 `openevt_plugins::raw::RawFilePlugin` adapts the native [`RawFileReader`] to the
-`abi_stable` plugin boundary, so a recording can be replayed anywhere an
+`abi_stable` plugin boundary, so you can replay a recording anywhere an
 application would otherwise open a camera. It is intentionally an adapter, not a
 second decoder.
 
@@ -19,8 +19,8 @@ module and advertises this device under the name `openevt_raw_file`. Place it in
 one of the standard plugin directories, or configure the host plugin search path
 with `OPENEVT_PLUGIN_PATH`.
 
-Note that the plugin library is separate from the `openevt` cdylib: the core
-crate exports no root module of its own, so the two can be loaded into the same
+The plugin library is separate from the `openevt` cdylib: the core
+crate exports no root module of its own, so you can load the two into the same
 process without their `abi_stable` root-module symbols colliding.
 
 To make raw files discoverable, set `OPENEVT_RAW_FILES` to a platform-separated
@@ -30,7 +30,7 @@ and pass the resulting configuration to the host layer’s
 `PluginRegistry::open_device_with_configuration` method.
 
 ```rust,no_run
-use openevt::hal::device::discovery::PluginRegistry;
+use openevt::PluginRegistry;
 
 let mut registry = PluginRegistry::new();
 registry.load_default_paths();
@@ -52,7 +52,8 @@ Those receivers never cross the ABI. Instead:
 
 1. `start_events` calls `RawFileReader::cd_receiver` and retains the receiver.
 2. `start_external_triggers` does the same for external-trigger events.
-3. `load_batch` delegates to `RawFileReader::load_batch`.
+3. `load_batch` delegates to `RawFileReader::load_batch` and maps the native
+   `Ok(None)` end-of-file result to `ROk(RNone)`.
 4. The plugin drains all batches produced by that decode and calls the shared
    `EventBatchSink` once per batch.
 
@@ -61,9 +62,10 @@ callback. Consumers that need to queue events must copy them. This is the same
 ownership rule as a borrowed native facility buffer, and avoids leaking a Rust
 allocator or channel implementation into third-party plugins.
 
-Both event callbacks use the same sink object. The application may implement one method
-and ignore the other when it only needs CD events. Calling `load_batch` before
-starting a stream preserves the native `NotInitialized`/stream error behavior.
+Both event callbacks use the same sink object. The application may implement one
+method and ignore the other when it needs only CD events. The plugin opens the reader
+when it opens the device, so calling `load_batch` before `start_events` decodes
+data and delivers nothing: the drain step finds no stored sink.
 
 ## Facilities
 
@@ -73,12 +75,12 @@ ERC, frame decoders, filters, event streams, geometry, software and hardware
 information, registers, biases, monitoring, ROI, and trigger I/O. `Other` is
 reserved for plugin-specific extensions.
 
-The raw-file adapter reports the six capabilities it implements: geometry,
-hardware identification, ROI, event stream, event stream decoder, and event
-decoder. `PluginFacility` intentionally identifies a capability without
-exposing native trait objects. Operations should be added as separately
-versioned ABI traits as plugins need them; native `Any`, crossbeam, `String`,
-and borrowed standard slices must not be added to the shared interface.
+The raw-file adapter reports the four capabilities it implements: `Geometry`,
+`Index`, `Seek`, and `ExternalTriggerSeek`, each backed by a callable
+`PluginFacilityHandle`. `PluginFacility` intentionally identifies a capability
+without exposing native trait objects. Add operations as separately versioned
+ABI traits as plugins need them; never add native `Any`, crossbeam, `String`,
+or borrowed standard slices to the shared interface.
 
 ## Template for future devices
 

@@ -5,10 +5,14 @@ The simulator plugin exposes one software device with serial
 
 - `video_file` — required video input;
 - `fps` — optional positive FPS override;
+- `width` — optional output width, default 800;
+- `height` — optional output height, default 600;
+- `preload` — optional flag that decodes the whole video up front, default
+  `false`;
 - `config_file` — optional TOML file containing the initial `EvsParameters`.
 
 If `fps` is omitted, the plugin uses the video's encoded average frame rate.
-If `config_file` is omitted, validated simulator defaults are used.
+If `config_file` is omitted, the plugin uses validated simulator defaults.
 
 The simulator advertises separate `Index` and `Seek` facilities. `Index`
 reports `t_min = 0` and the video stream duration in microseconds. `Seek`
@@ -20,13 +24,13 @@ After the application creates the device through the host layer, it subscribes
 to CD events and starts the raw-event stream. Each stream request decodes one
 video frame, converts RGB pixels to luminance photocurrents, assigns a
 timestamp in microseconds from the frame index and FPS, and passes the frame
-to the stateful `EvsSimulator`. Each frame is held for its
-video-frame duration and integrated at the configured Forward-Euler time step,
-so the model does not silently change behavior when the video FPS changes.
-Generated events, including empty event batches, are delivered in one callback
-to every subscribed CD sink. The plugin reuses its RGB and photocurrent
-buffers across frames and owns the FFmpeg input, decoder, scaler, and simulator
-state for the device lifetime.
+to the stateful `EvsSimulator`. The simulator holds each frame for its
+video-frame duration and integrates it at the configured Forward-Euler time
+step, so the model does not silently change behavior when the video FPS
+changes. The plugin delivers generated events, including empty event batches, in
+one callback to every subscribed CD sink. The plugin reuses its RGB and
+photocurrent buffers across frames and owns the FFmpeg input, decoder, scaler,
+and simulator state for the device lifetime.
 
 The optional parameter file must contain the fields of `EvsParameters`, for
 example:
@@ -58,5 +62,6 @@ deviations. The simulator derives the white-noise input variance using Eq. 23
 and applies it through the first-order autoregressive model in Eq. 19. Noise
 uses a deterministic seed so runs are reproducible.
 
-The host layer validates the creation schema before crossing the ABI, and the
-plugin validates it again before opening the video or parameter file.
+The host layer validates the creation schema before the configuration crosses
+the ABI, and the plugin validates it again before opening the video or
+parameter file.
