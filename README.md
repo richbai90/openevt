@@ -123,10 +123,14 @@ python -m pip install openevt
 
 The wheel ships type stubs and a `py.typed` marker, so type checkers resolve
 the API. The Python `RawFileReader` is plugin-backed: it requires a file path
-(`RawFileReader(path, index=False)`) and a device plugin reachable through
-`OPENEVT_PLUGIN_PATH`. Its batch methods (`next_batch`, `next_n`, `next_delta`)
-return `None` at end of file, and its iterators raise `StopIteration` when
-exhausted.
+(`RawFileReader(path, index=False)`) and a device plugin on the configured
+plugin search paths — `OPENEVT_PLUGIN_PATH` plus the default directories
+`/usr/lib/openevt/plugins` and `/usr/local/lib/openevt/plugins`, so the
+environment variable is not required when a plugin is installed in a default
+directory. `RawFileReader` exposes `load_batch`, `iter`, and `aiter`; the
+`CDEventIterator` returned by `iter()` provides the batch methods
+(`next_batch`, `next_n`, `next_delta`), which return `None` at end of file,
+and the iterators raise `StopIteration` when exhausted.
 
 ## Attribution and independence
 

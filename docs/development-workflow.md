@@ -39,8 +39,10 @@ To inspect a built plugin by hand, run the probe example against any raw file:
 OPENEVT_PLUGIN_PATH="$PWD/target/release" cargo run --example probe_plugins -- some.raw
 ```
 
-It prints load results per library, discovered devices, and the reason
-`open_device` fails when it does.
+The probe loads each plugin library from that directory exactly once, using
+the same platform-aware extension filter as plugin discovery (`.so`, `.dll`,
+and `.dylib`), then prints the load result per library, the discovered
+devices, and the reason `open_device` fails when it does.
 
 ## Configure a device from the host
 

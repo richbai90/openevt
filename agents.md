@@ -73,7 +73,7 @@ All feature development and implementation within `openevt` must follow a Test-D
 
 ## 3. Python Bindings (`openevt-py`)
 
-All PyO3 code lives in the dedicated `crates/openevt-py` workspace crate and is gated behind the single `python` feature. Domain crates never link PyO3.
+The main `openevt` bindings live in the dedicated `crates/openevt-py` workspace crate, gated behind its single `python` feature. `openevt-plugins` declares an optional `python` feature of its own and provides a separate simulator binding; domain crates otherwise never link PyO3.
 
 - PyO3 0.29 with the `abi3-py39`, `extension-module`, and `experimental-async` features.
 - The compiled extension module is named `openevt`. The pure-Python package in `python/openevt/` re-exports it and ships type stubs (`__init__.pyi`, `openevt.pyi`, `algorithms/*.pyi`) plus `py.typed`.
@@ -87,7 +87,7 @@ The bindings expose the device classes (`EventCD`, `RawFileReader`, `CDEventRece
 
 ### API Conventions
 
-- **Plugin-backed reader**: `RawFileReader(path, index=False)` requires a path and loads devices through the plugin ABI. Without a compatible plugin on `OPENEVT_PLUGIN_PATH` it raises `RuntimeError`; without a path it raises `ValueError`.
+- **Plugin-backed reader**: `RawFileReader(path, index=False)` requires a path and loads devices through the plugin ABI, searching `OPENEVT_PLUGIN_PATH` and the default directories `/usr/lib/openevt/plugins` and `/usr/local/lib/openevt/plugins`. Without a compatible plugin on those paths it raises `RuntimeError`; without a path it raises `ValueError`.
 - **End of file**: `next_batch()`, `next_n(n)`, and `next_delta(dt)` return a structured NumPy array or `None` at end of file. `__next__` raises `StopIteration`; `CDEventReceiver.try_recv()` returns `None` when nothing is queued.
 - **Factory-only classes**: `CDEventReceiver`, `CDEventIterator`, `AsyncCDEventIterator`, and `Tensor` have no Python constructor. Host APIs (`RawFileReader.iter()`, `RawFileReader.aiter()`, `to_tensor()`) create them, and the stubs mark them non-instantiable.
 - **No feature-introspection constants**: the module registers no `HAS_*` flags and no `PyNotImplementedError` fallback stubs; the `python` feature is the only gate.
@@ -115,8 +115,8 @@ The bindings expose the device classes (`EventCD`, `RawFileReader`, `CDEventRece
 
 ## Verification & Execution Checklist
 
-1. Run `cargo test --features full` after any feature change; it covers the workspace default feature set without linking the Python extension module.
+1. Run `cargo test --workspace` after any feature change; it covers every workspace crate's default feature set without linking the Python extension module.
 2. Run `cargo check --workspace --exclude openevt-py` to verify core facilities build cleanly without Python runtime overhead.
 3. Run `cargo check -p openevt --features python,full` to confirm feature-gated PyO3 binding integration.
-4. Build the debug extension and plugins with `cargo build --features python`, then run `pytest tests/python` for the Python API tests.
+4. Build the debug extension with `cargo build --features python` and the plugins with `cargo build -p openevt-plugins`, then run `pytest tests/python` for the Python API tests.
 5. Run `cargo test -p openevt-plugins --test plugin_discovery` to verify plugin discovery.

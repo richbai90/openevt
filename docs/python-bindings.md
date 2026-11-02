@@ -11,9 +11,11 @@ python -m pip install openevt
 ## Plugin requirement
 
 The Python `RawFileReader` works through the device-plugin ABI. It loads
-plugins from `OPENEVT_PLUGIN_PATH` and raises `RuntimeError` when no
+plugins from the configured plugin search paths — `OPENEVT_PLUGIN_PATH` plus
+the default directories `/usr/lib/openevt/plugins` and
+`/usr/local/lib/openevt/plugins` — and raises `RuntimeError` when no
 compatible plugin exists. Build the standard plugins and point the variable at
-the output directory:
+the output directory unless a plugin is installed in a default directory:
 
 ```sh
 cargo build --release -p openevt-plugins
@@ -23,12 +25,14 @@ export OPENEVT_PLUGIN_PATH="$PWD/target/release"
 ## Reading a raw file
 
 The constructor requires a path; `RawFileReader()` without one raises
-`ValueError`. Set `index=True` to enable `seek` and `t_min`/`t_max`.
+`ValueError`. The optional `index` argument is ignored by the standard
+plugin-backed reader: `t_min` and `t_max` return `None`, and `seek` raises an
+error for either `index` value.
 
 ```python
 import openevt
 
-reader = openevt.RawFileReader("events.raw", index=True)
+reader = openevt.RawFileReader("events.raw")
 iterator = reader.iter()
 
 batch = iterator.next_batch()

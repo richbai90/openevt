@@ -29,8 +29,10 @@ video-frame duration and integrates it at the configured Forward-Euler time
 step, so the model does not silently change behavior when the video FPS
 changes. The plugin delivers generated events, including empty event batches, in
 one callback to every subscribed CD sink. The plugin reuses its RGB and
-photocurrent buffers across frames and owns the FFmpeg input, decoder, scaler,
-and simulator state for the device lifetime.
+photocurrent buffers across frames. In streaming mode it owns the FFmpeg
+input, decoder, scaler, and simulator state for the device lifetime; with
+`preload` enabled, it decodes the whole video up front and retains the
+preloaded event batches instead of that decoder state.
 
 The optional parameter file must contain the fields of `EvsParameters`, for
 example:

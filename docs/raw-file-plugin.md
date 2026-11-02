@@ -63,9 +63,11 @@ ownership rule as a borrowed native facility buffer, and avoids leaking a Rust
 allocator or channel implementation into third-party plugins.
 
 Both event callbacks use the same sink object. The application may implement one
-method and ignore the other when it needs only CD events. The plugin opens the reader
-when it opens the device, so calling `load_batch` before `start_events` decodes
-data and delivers nothing: the drain step finds no stored sink.
+method and ignore the other when it needs only CD events. Call `load_batch` only
+after `start_events` or `start_external_triggers` has started the stream: before
+either one, `load_batch` fails with a disconnected-stream error, and after
+`start_external_triggers` alone it delivers external-trigger events even though
+`start_events` was never called.
 
 ## Facilities
 
@@ -75,9 +77,13 @@ ERC, frame decoders, filters, event streams, geometry, software and hardware
 information, registers, biases, monitoring, ROI, and trigger I/O. `Other` is
 reserved for plugin-specific extensions.
 
-The raw-file adapter reports the four capabilities it implements: `Geometry`,
+The raw-file adapter advertises the four capabilities it implements: `Geometry`,
 `Index`, `Seek`, and `ExternalTriggerSeek`, each backed by a callable
-`PluginFacilityHandle`. `PluginFacility` intentionally identifies a capability
+`PluginFacilityHandle`. `Index` and `Seek` require a timestamp index, which a
+normally opened file does not have: the plugin opens raw files unindexed, so
+`Index` reports no timestamps, `Seek` returns the "File must be indexed" error,
+and `ExternalTriggerSeek` returns that same error once it finds an external
+trigger. `PluginFacility` intentionally identifies a capability
 without exposing native trait objects. Add operations as separately versioned
 ABI traits as plugins need them; never add native `Any`, crossbeam, `String`,
 or borrowed standard slices to the shared interface.
